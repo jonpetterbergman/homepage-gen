@@ -30,7 +30,13 @@ import           Text.Blaze.Html                  (Html,toHtml)
 import           Text.Blaze.Html.Renderer.Text    (renderHtml)
 import qualified Text.Blaze.Html5              as H
 import           Text.Markdown                    (markdown)
-import           System.FilePath.Posix            (takeExtension,dropExtension)
+import           System.Directory                 (createDirectoryIfMissing,
+                                                   getDirectoryContents)
+import           System.FilePath.Posix            (takeExtension,
+                                                   takeExtensions,
+                                                   dropExtension,
+                                                   splitDirectories,
+                                                   joinPath)
 
 
 type Lang = String
@@ -87,12 +93,13 @@ mkTitle lang fallbacks = toHtml . T.intercalate " / " . map go
           (M.lookup lang s) `mplus` (M.lookup lang fallbacks)
 
 renderPage :: Lang
-       -> Map Lang Text
-       -> Map Lang Html
-       -> Page
-       -> (FilePath,LT.Text)
+           -> Map Lang Text
+           -> Map Lang Html
+           -> Page
+           -> (FilePath,LT.Text)
 renderPage lang titlefallbacks contentfallbacks page = (fullpath,encodedHtml)
-    where fullpath = L.intercalate "/" $ map urlname $ path page
+    where fullpath = (L.intercalate "/" $ map urlname $ path page) 
+                     ++ "." ++ lang
           theTitle = mkTitle lang titlefallbacks $ map nicenames $ path page
           encodedHtml = renderHtml $ H.docTypeHtml $ do
             H.head $ H.title theTitle
@@ -102,6 +109,23 @@ renderPage lang titlefallbacks contentfallbacks page = (fullpath,encodedHtml)
                       (M.lookup lang $ content page) `mplus` 
                       (M.lookup lang $ contentfallbacks)
 
+createDirPath :: FilePath
+              -> IO ()
+createDirPath fname =
+  case splitDirectories fname of
+    [] -> return ()
+    [_] -> return ()
+    _ -> createDirectoryIfMissing True $ init fname
+
+writeRendered :: FilePath
+              -> (FilePath,LT.Text)
+              -> IO ()
+writeRendered dstDir (filename,content) =
+  do
+    createDirPath fullname
+    LTIO.writeFile fullname content
+  where fullname = dstDir ++ "/" ++ filename 
+ 
 fileLang :: FilePath 
          -> Lang
 fileLang = go . takeExtension
@@ -116,6 +140,20 @@ dropLangExtension filename =
     ".md" -> filename
     ['.',x,y] -> dropExtension filename
     xs -> error $ "Cannot understand language: " ++ xs
+
+hpFiles :: [FilePath] 
+        -> [FilePath]
+hpFiles = filter go
+  where go filename | "notranslation." `L.isPrefixOf` filename = False
+                    | otherwise =
+                       case takeExtensions filename of
+                         ".md"                 -> True
+                         ['.','m','d','.',_,_] -> True
+                         _                     -> False         
+
+trFiles :: [FilePath]
+        -> [FilePath]
+trFiles = filter $ L.isPrefixOf "notranslation."
 
 groupFiles :: [FilePath] 
            -> [[FilePath]]
@@ -163,8 +201,28 @@ mkPathElement lang url nice =
 
 mkPage :: FileStruct
        -> Page
-mkPage fs = Page (zipWith (mkPathElement $ hasLang fs) (urlPath fs) (nicePath fs)) 
-            (M.singleton (hasLang fs) (markdown def $ markdownContent fs))
+mkPage fs = 
+  Page (zipWith (mkPathElement $ hasLang fs) (urlPath fs) (nicePath fs)) 
+       (M.singleton (hasLang fs) (markdown def $ markdownContent fs))
 
 readPage :: [FilePath] -> IO Page
 readPage filenames = fmap (mconcat . map mkPage) $ mapM readFileStruct filenames
+
+makePages :: [Lang]
+          -> Map Lang Text
+          -> Map Lang Html
+          -> FilePath
+          -> FilePath
+          -> IO ()
+makePages langs titlefallbacks contentfallbacks srcDir dstDir =
+  do
+    allFiles <- getDirectoryContents srcDir
+    pages <- mapM readPage $ (map . map (srcDir ++ "/" ++)) $ groupFiles $ hpFiles allFiles
+    mapM_ (writeRendered dstDir) $ concat $ map (\page -> map (\lang -> renderPage lang titlefallbacks contentfallbacks page) langs) pages
+
+loadFallBacks :: FilePath
+              -> IO (Map Lang Text,Map Lang Html)
+loadFallBacks dir =
+  do
+    allFiles <- getDirectoryContents
+    
