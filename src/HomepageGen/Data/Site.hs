@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.Site where
+module HomepageGen.Data.Site where
 
 import           Control.Applicative              ((<$>),(<*>),(*>),(<*),pure)
-import           Control.Monad                    (mplus)
+import           Control.Monad                    (mplus,zipWithM)
 import           Data.Attoparsec.Text.Lazy        (Parser,
                                                    takeLazyText,
                                                    endOfLine,
@@ -27,7 +27,7 @@ import qualified Data.Text                     as T
 import qualified Data.Text.Lazy                as LT
 import qualified Data.Text.Lazy.IO             as LTIO
 import           Text.Blaze.Html                  (Html,toHtml)
-import           Text.Blaze.Html.Renderer.Text    (renderHtml)
+import           Text.Blaze.Html.Renderer.Pretty  (renderHtml)
 import qualified Text.Blaze.Html5              as H
 import           Text.Markdown                    (markdown)
 import           System.Directory                 (createDirectoryIfMissing,
@@ -36,52 +36,31 @@ import           System.FilePath.Posix            (takeExtension,
                                                    takeExtensions,
                                                    dropExtension,
                                                    splitDirectories,
-                                                   joinPath)
+                                                   joinPath,
+                                                   combine)
+import           Debug.Trace
 
 
 type Lang = String
 
-data PathElement =
-  PathElement 
-    {
-      urlname :: String
-    , nicenames :: Map Lang Text
-    }
+data PathHeader =
+  PathHeader {
+               urlPath :: [Text]
+             , nicePath :: [Text]
+             }
 
-instance Monoid PathElement where
-  mempty = PathElement "" M.empty
-  mappend (PathElement u1 n1) (PathElement u2 n2) =
-    PathElement (joinUrl u1 u2) (M.union n1 n2)
-      where joinUrl ""  url                = url
-            joinUrl url url' | url == url' = url
-                             | otherwise   = error $ "url path elements differ: " 
-                                             ++ url ++ " /= " ++ url' 
-
-data Page =
-  Page {
-         path :: [PathElement]
-       , content :: Map Lang Html
-       }
-
-instance Monoid Page where
-  mempty = Page [] M.empty
-  mappend (Page p1 c1) (Page p2 c2) =
-    Page (zipWith mappend p1 p2) (M.union c1 c2)
-
-
-data FileStruct =
+data FileStruct a =
   FileStruct {
                hasLang :: Lang
-             , urlPath :: [Text]
-             , nicePath :: [Text]
+             , header :: a
              , markdownContent :: LT.Text
              }
 
-type Site = [Page]
+type Site = Map FilePath ([Map Lang Text],Map Lang Html)
 
-noTranslation :: Lang 
+noTranslation :: Lang
               -> a
-noTranslation lang = error $ "No translation found for: " ++ lang
+noTranslation lang = error $ "No translation for " ++ show lang
 
 mkTitle :: Lang 
         -> Map Lang Text
@@ -92,22 +71,22 @@ mkTitle lang fallbacks = toHtml . T.intercalate " / " . map go
           fromMaybe (noTranslation lang) $ 
           (M.lookup lang s) `mplus` (M.lookup lang fallbacks)
 
-renderPage :: Lang
-           -> Map Lang Text
+renderPage :: Map Lang Text
            -> Map Lang Html
-           -> Page
+           -> FilePath
+           -> ([Map Lang Text],Map Lang Html)
+           -> Lang
            -> (FilePath,LT.Text)
-renderPage lang titlefallbacks contentfallbacks page = (fullpath,encodedHtml)
-    where fullpath = (L.intercalate "/" $ map urlname $ path page) 
-                     ++ "." ++ lang
-          theTitle = mkTitle lang titlefallbacks $ map nicenames $ path page
-          encodedHtml = renderHtml $ H.docTypeHtml $ do
+renderPage titlefallbacks contentfallbacks neutralname (nicenames,content) lang = (fullpath,encodedHtml)
+    where fullpath = neutralname ++ "." ++ lang
+          theTitle = mkTitle lang titlefallbacks nicenames
+          encodedHtml = LT.pack $ renderHtml $ H.docTypeHtml $ do
             H.head $ H.title theTitle
             H.body $ do
               H.h1 theTitle
               H.div $ fromMaybe (noTranslation lang) $ 
-                      (M.lookup lang $ content page) `mplus` 
-                      (M.lookup lang $ contentfallbacks)
+                      (M.lookup lang content) `mplus` 
+                      (M.lookup lang contentfallbacks)
 
 createDirPath :: FilePath
               -> IO ()
@@ -115,7 +94,7 @@ createDirPath fname =
   case splitDirectories fname of
     [] -> return ()
     [_] -> return ()
-    _ -> createDirectoryIfMissing True $ init fname
+    xs -> createDirectoryIfMissing True $ joinPath $ init xs
 
 writeRendered :: FilePath
               -> (FilePath,LT.Text)
@@ -141,9 +120,9 @@ dropLangExtension filename =
     ['.',x,y] -> dropExtension filename
     xs -> error $ "Cannot understand language: " ++ xs
 
-hpFiles :: [FilePath] 
-        -> [FilePath]
-hpFiles = filter go
+hpFiles :: FilePath 
+        -> IO [FilePath]
+hpFiles = fmap (filter go) . getDirectoryContents
   where go filename | "notranslation." `L.isPrefixOf` filename = False
                     | otherwise =
                        case takeExtensions filename of
@@ -151,21 +130,17 @@ hpFiles = filter go
                          ['.','m','d','.',_,_] -> True
                          _                     -> False         
 
-trFiles :: [FilePath]
-        -> [FilePath]
-trFiles = filter $ L.isPrefixOf "notranslation."
-
-groupFiles :: [FilePath] 
-           -> [[FilePath]]
-groupFiles = L.groupBy ((==) `on` dropLangExtension) . L.sort
+trFiles :: FilePath
+        -> IO [FilePath]
+trFiles = fmap (filter $ L.isPrefixOf "notranslation.") . getDirectoryContents
 
 validUrlComponent :: Parser Text
 validUrlComponent = 
-  takeWhile1 $ \c -> isAsciiLower c || c == '-' || isDigit c
+  takeWhile1 $ \c -> isAsciiLower c || c == '-' || c == '.' || isDigit c
 
 validNiceComponent :: Parser Text
 validNiceComponent =
-  takeWhile1 $ \c -> isAlphaNum c || inClass " -_" c
+  takeWhile1 $ \c -> isAlphaNum c || inClass " -_." c
 
 parseUrlPath :: Parser [Text]
 parseUrlPath = 
@@ -175,54 +150,65 @@ parseNicePath :: Parser [Text]
 parseNicePath =
   skipSpace >> sepBy' validNiceComponent "/"
 
-parseFileStruct :: Lang -> Parser FileStruct
-parseFileStruct lang = 
+parsePathHeader :: Parser PathHeader
+parsePathHeader = 
+  PathHeader <$>
+  ("urlpath:"  *> parseUrlPath <* endOfLine) <*>
+  ("nicepath:" *> parseNicePath <* endOfLine)
+
+parseTransHeader :: Parser Text
+parseTransHeader =
+  "nicename:" *> validNiceComponent <* endOfLine
+
+parseFileStruct :: Lang
+                -> Parser a 
+                -> Parser (FileStruct a)
+parseFileStruct lang parseHeader = 
   FileStruct <$> 
   (pure lang) <*>
-  ("urlpath:"  *> parseUrlPath <* endOfLine) <*>
-  ("nicepath:" *> parseNicePath <* endOfLine) <*>
+  parseHeader <*>
   takeLazyText  
 
-readFileStruct :: FilePath 
-               -> IO FileStruct
-readFileStruct filename =
+readFileStruct :: Parser a
+               -> FilePath 
+               -> IO (FileStruct a)
+readFileStruct p filename =
   do
     contents <- LTIO.readFile filename
     either (\s -> error $ "Error parsing filestruct: " ++ s) 
            return $ 
-           eitherResult $ parse (parseFileStruct $ fileLang filename) contents
+           eitherResult $ parse (parseFileStruct (fileLang filename) 
+                          p) contents
 
-mkPathElement :: Lang
-              -> Text
-              -> Text
-              -> PathElement
-mkPathElement lang url nice = 
-  PathElement (T.unpack url) (M.singleton lang nice) 
+readFallbacks :: FilePath
+              -> IO (Map Lang Text,Map Lang Html)
+readFallbacks dir =
+  do
+    allFiles <- trFiles dir
+    fmap (foldr go (mempty,mempty)) $ 
+         mapM (readFileStruct parseTransHeader) allFiles
+  where go fs (titles,contents) = 
+          (M.insert (hasLang fs) (header fs) titles,
+           M.insert (hasLang fs) (markdown def $ markdownContent fs) contents)
 
-mkPage :: FileStruct
-       -> Page
-mkPage fs = 
-  Page (zipWith (mkPathElement $ hasLang fs) (urlPath fs) (nicePath fs)) 
-       (M.singleton (hasLang fs) (markdown def $ markdownContent fs))
-
-readPage :: [FilePath] -> IO Page
-readPage filenames = fmap (mconcat . map mkPage) $ mapM readFileStruct filenames
+mkSite :: [FileStruct PathHeader]
+       -> Site
+mkSite = foldr go mempty
+  where go fs mp = M.insertWith comb (L.intercalate "/" $ map T.unpack $ urlPath $ header fs)
+                                (map (M.singleton (hasLang fs)) $ nicePath $ header fs,
+                                 M.singleton (hasLang fs) $ markdown def $ markdownContent fs)
+                                mp
+        comb (path1,cont1) 
+             (path2,cont2) = (zipWith M.union path1 path2,M.union cont1 cont2)
 
 makePages :: [Lang]
-          -> Map Lang Text
-          -> Map Lang Html
           -> FilePath
           -> FilePath
           -> IO ()
-makePages langs titlefallbacks contentfallbacks srcDir dstDir =
+makePages langs srcDir dstDir =
   do
-    allFiles <- getDirectoryContents srcDir
-    pages <- mapM readPage $ (map . map (srcDir ++ "/" ++)) $ groupFiles $ hpFiles allFiles
-    mapM_ (writeRendered dstDir) $ concat $ map (\page -> map (\lang -> renderPage lang titlefallbacks contentfallbacks page) langs) pages
+    (titleFallbacks,contentFallbacks) <- readFallbacks srcDir    
+    allFiles <- hpFiles srcDir
+    site <- fmap mkSite $ mapM (readFileStruct parsePathHeader) $ map (combine srcDir) allFiles
+    mapM_ (writeRendered dstDir) $ concatMap (\(p,page) -> map (renderPage titleFallbacks contentFallbacks p page) langs) $ M.toList site
 
-loadFallBacks :: FilePath
-              -> IO (Map Lang Text,Map Lang Html)
-loadFallBacks dir =
-  do
-    allFiles <- getDirectoryContents
-    
