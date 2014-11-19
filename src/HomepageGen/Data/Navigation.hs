@@ -7,14 +7,14 @@ import Data.Tree.Zipper      (TreePos,
                               fromTree,
                               firstChild,
                               next)
-import HomepageGen.Data.Site (Site,
-                              Page)
+import HomepageGen.Data.Site (LocalSite,
+                              LocalPage)
 import Debug.Trace
 
 
-type Navigation = TreePos Full Page
+type Navigation = TreePos Full LocalPage
 
-fromSite :: Site 
+fromSite :: LocalSite 
          -> [Navigation]
 fromSite tree = go $ fromTree tree 
   where go root =  

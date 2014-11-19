@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 module HomepageGen.IO where
 
+import           Data.Default          (def)
 import           Data.List             (isPrefixOf,
                                         isSuffixOf,
                                         partition)
@@ -10,9 +11,11 @@ import qualified Data.Text         as   T
 import qualified Data.Text.Lazy    as   LT
 import qualified Data.Text.Lazy.IO as   LTIO
 import           Data.Tree             (Tree(..))
-import           HomepageGen.Data.Site (Site,
+import           HomepageGen.Data.Site (IntlSite,
+                                        IntlPage,
                                         Page(..),
                                         Lang,
+                                        appendPages,
                                         joinPages)
 import           System.Directory      (getDirectoryContents,
                                         doesDirectoryExist)
@@ -21,6 +24,10 @@ import           System.FilePath       (combine,
                                         takeFileName,
                                         dropExtension,
                                         splitFileName)
+import           System.FilePath.Glob  (Pattern,
+                                        compile,
+                                        match)
+import           Text.Pandoc           (readMarkdown)
 
 fileLang :: FilePath 
          -> Lang
@@ -45,43 +52,55 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
 
 readPage :: FilePath
          -> FilePath
-         -> IO Page
+         -> IO IntlPage
 readPage dir fname =
   let lang = fileLang fname in
   do
-    contents <- LTIO.readFile $ combine dir fname
+    contents <- readFile $ combine dir fname
     return $ Page (dropMdExtension $ dropLangExtension fname) 
-                  (Map.singleton lang $ T.concat $ LT.toChunks $ 
-                                 head $ LT.lines contents) 
-                  (Map.singleton lang contents)
+                  (Map.singleton lang $ readMarkdown def contents)
 
-valid :: FilePath
+readIgnore :: FilePath
+           -> IO [Pattern]
+readIgnore dir = fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
+
+valid :: [Pattern]
+      -> FilePath
       -> Bool
-valid ('.':_) = False  
-valid xs      = case reverse xs of
-                  ('~':_) -> False
-                  xs      -> True
+valid globs xs = not $ "default.md" `isPrefixOf` xs ||
+                       "."          `isPrefixOf` xs ||
+                       (or $ map (flip match $ xs) globs)
 
 readSingle :: FilePath
-           -> IO Site
+           -> IO IntlSite
 readSingle fullpath = 
   let (dir,base) = splitFileName fullpath in
   fmap (flip Node $ []) $ readPage dir base
 
-readDir :: FilePath
-        -> IO Site
-readDir dir =
+readDir :: [Pattern]
+        -> FilePath
+        -> IO IntlSite
+readDir globs dir =
   do
-    (ixs,rest) <- fmap (partition (isPrefixOf "index.md") . filter valid) $ 
+    (ixs,rest) <- fmap (partition (isPrefixOf "index.md") . filter (valid globs)) $ 
                        getDirectoryContents dir
     ixpages    <- mapM (readPage dir) ixs
-    children   <- mapM (readSite . combine dir) rest
-    return $ Node ((mconcat ixpages) { urlname = takeFileName dir })
-                  (joinPages children)
+    children   <- mapM (readNode globs . combine dir) rest
+    case ixpages of
+      h:t ->
+        return $ Node ((foldr appendPages h t) { urlname = takeFileName dir })
+                      (joinPages children)
+      _ -> error $ "no index found for " ++ show dir 
 
-readSite :: FilePath
-         -> IO Site
-readSite fname = 
+readNode :: [Pattern]
+         -> FilePath
+         -> IO IntlSite
+readNode globs fname = 
   do
     isDir <- doesDirectoryExist fname
-    if isDir then readDir fname else readSingle fname
+    if isDir then readDir globs fname else readSingle fname
+
+readSite :: FilePath
+         -> IO IntlSite
+readSite fname = readIgnore fname >>= ((flip readNode) fname)
+ 

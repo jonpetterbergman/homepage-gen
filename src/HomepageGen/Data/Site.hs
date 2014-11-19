@@ -1,34 +1,45 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections,
+             TypeSynonymInstances,
+             FlexibleInstances #-}
 module HomepageGen.Data.Site where
 
+import           Control.Monad        (join)
 import           Data.Function        (on)
 import           Data.List            (groupBy,
                                        sortBy)
 import           Data.Map             (Map)
 import qualified Data.Map          as  Map
+import           Data.Maybe           (fromMaybe)
 import           Data.Monoid          (Monoid(..))
 import           Data.Text            (Text)
 import qualified Data.Text.Lazy    as  LT
+import qualified Data.Traversable  as  Tr
 import           Data.Tree            (Tree(..),
                                        Forest)
+import           Text.Pandoc          (Pandoc)
 
-type Lang = String
+type Lang = String                     
 
-data Page =
+data Page a =
   Page {
          urlname  :: FilePath
-       , nicename :: Map Lang Text
-       , content  :: Map Lang LT.Text
-       } 
+       , content  :: a
+       }          
        deriving Show      
 
-instance Monoid Page where
-  mempty = Page "" mempty mempty
-  mappend p1 p2 = Page (urlname p1) 
-                       (Map.union (nicename p1) (nicename p2))
-                       (Map.union (content p1) (content p2))
+type IntlPage = Page (Map Lang Pandoc)
 
-type Site = Tree Page
+type LocalPage = Page Pandoc
+
+appendPages :: IntlPage 
+          -> IntlPage
+          -> IntlPage
+appendPages p1 p2 = Page (urlname p1) 
+                         (Map.union (content p1) (content p2))
+
+type IntlSite = Tree IntlPage
+
+type LocalSite = Tree LocalPage
 
 splitLeaves :: Forest a
             -> ([a],Forest a)
@@ -36,12 +47,21 @@ splitLeaves = foldr go ([],[])
   where go (Node x []) (leaves,trees) = (x:leaves,trees)
         go tree        (leaves,trees) = (leaves,tree:trees)
 
-joinPages :: Forest Page
-          -> Forest Page
+joinPages :: Forest IntlPage
+          -> Forest IntlPage
 joinPages pgs =
   let (leaves,trees) = splitLeaves pgs in
-  (map (flip Node $ []) $ map mconcat $ groupBy ((==) `on` urlname) 
-                                      $ sortBy (compare `on` urlname) leaves) 
+  (map (flip Node $ []) $ Map.elems $ 
+                          foldr (\l -> Map.insertWith appendPages 
+                                                      (urlname l) l) 
+                                mempty leaves)  
   ++ trees
 
+localize :: Lang 
+         -> LocalPage
+         -> IntlSite
+         -> LocalSite
+localize lang defaultPage = fmap go
+  where go (Page n mp) = 
+         fromMaybe defaultPage $ fmap (Page n) $ Map.lookup lang mp
 
