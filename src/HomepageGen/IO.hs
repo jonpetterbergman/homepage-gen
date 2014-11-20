@@ -12,8 +12,11 @@ import qualified Data.Text.Lazy    as   LT
 import qualified Data.Text.Lazy.IO as   LTIO
 import           Data.Tree             (Tree(..))
 import           HomepageGen.Data.Site (IntlSite,
+                                        LocalSite,
+                                        localizes,
                                         IntlPage,
                                         Page(..),
+                                        LocalContent(..),
                                         Lang,
                                         appendPages,
                                         joinPages)
@@ -64,6 +67,23 @@ readIgnore :: FilePath
            -> IO [Pattern]
 readIgnore dir = fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
 
+readDefault :: FilePath
+            -> IO LocalContent
+readDefault fname =
+  do
+    contents <- readFile fname
+    return $ LocalContent (fileLang fname) (readMarkdown def contents)
+
+readDefaults :: [Pattern]
+             -> FilePath
+             -> IO [LocalContent]
+readDefaults globs dir = 
+  do
+    dfiles <- fmap (filter (\f -> "default.md" `isPrefixOf` f && 
+                                  not (or $ map (flip match $ f) globs))) $ 
+                   getDirectoryContents dir
+    mapM readDefault $ map (combine dir) dfiles
+
 valid :: [Pattern]
       -> FilePath
       -> Bool
@@ -100,7 +120,11 @@ readNode globs fname =
     isDir <- doesDirectoryExist fname
     if isDir then readDir globs fname else readSingle fname
 
-readSite :: FilePath
-         -> IO IntlSite
-readSite fname = readIgnore fname >>= ((flip readNode) fname)
- 
+readLocalSites :: FilePath
+               -> IO [LocalSite]
+readLocalSites fname =
+  do
+    globs <- readIgnore fname
+    site  <- readNode globs fname
+    defs  <- readDefaults globs fname
+    return $ localizes site defs

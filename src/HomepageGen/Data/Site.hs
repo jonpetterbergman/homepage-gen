@@ -29,11 +29,17 @@ data Page a =
 
 type IntlPage = Page (Map Lang Pandoc)
 
-type LocalPage = Page Pandoc
+data LocalContent =
+  LocalContent {
+                 contentLanguage :: Lang 
+               , localContent :: Pandoc
+               }
+
+type LocalPage = Page LocalContent
 
 appendPages :: IntlPage 
-          -> IntlPage
-          -> IntlPage
+            -> IntlPage
+            -> IntlPage
 appendPages p1 p2 = Page (urlname p1) 
                          (Map.union (content p1) (content p2))
 
@@ -57,11 +63,15 @@ joinPages pgs =
                                 mempty leaves)  
   ++ trees
 
-localize :: Lang 
-         -> LocalPage
-         -> IntlSite
+localize :: IntlSite
+         -> LocalContent
          -> LocalSite
-localize lang defaultPage = fmap go
+localize site defaultPage = fmap go site
   where go (Page n mp) = 
-         fromMaybe defaultPage $ fmap (Page n) $ Map.lookup lang mp
+          let lang = contentLanguage defaultPage in
+          fromMaybe (Page n $ defaultPage) $ fmap (Page n . LocalContent lang) $ Map.lookup lang mp
 
+localizes :: IntlSite 
+          -> [LocalContent]
+          -> [LocalSite]
+localizes site = map $ localize site
