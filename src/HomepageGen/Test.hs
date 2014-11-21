@@ -28,7 +28,7 @@ testTitles src =
     return $ map pageTitle $ concatMap fromSite sites
 
 testLogicalPath :: FilePath
-                -> IO [[String]]
+                -> IO [([(String,FilePath)],String)]
 testLogicalPath src =
   do
     sites <- readLocalSites src
