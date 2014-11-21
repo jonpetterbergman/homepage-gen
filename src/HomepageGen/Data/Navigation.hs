@@ -12,8 +12,7 @@ import Data.Tree.Zipper       (TreePos,
                                parents,
                                next,
                                label,
-                               after,
-                               before)
+                               prev)
 import HomepageGen.Data.Site  (LocalSite,
                                LocalPage,
                                LocalContent(..),
@@ -80,15 +79,23 @@ logicalPath :: Navigation
 logicalPath nav =
   (map (\n -> (pageTitle n,relativePath n)) $ (reverse $ ancestors nav),pageTitle nav)
 
---menu :: Navigation
---     -> Forest (String,Maybe String)
---menu nav = moveUp (parent nav) $ (mkEnts $ before nav) ++
---                                 [Node (pageTitle nav,Nothing) []] ++
---                                 (mkEnts $ after nav)
---  where mkEnt nav = Node (pageTitle nav, Just $ relativePath nav) []
---        mkEnts = map mkEnt . map fromTree 
---        moveUp Nothing prevForest = prevForest
---        moveUp (Just nav) prevForest = moveUp (parent nav) $ (mkEnts $ before nav) ++
---                                                             [Node (mkEnt nav) prevForest] ++
---                                                             (mkEnts $ after nav)
+befores :: Navigation
+        -> [Navigation]
+befores = unfoldr (fmap dup . prev)
+
+afters :: Navigation
+       -> [Navigation]
+afters = unfoldr (fmap dup . prev)
+
+menu :: Navigation
+     -> Forest (String,Maybe String)
+menu nav = moveUp (parent nav) $ (map mkNode $ befores nav) ++
+                                 [Node (pageTitle nav,Nothing) []] ++
+                                 (map mkNode $ afters nav)
+  where mkEnt nav = (pageTitle nav, Just $ relativePath nav)
+        mkNode nav = Node (mkEnt nav) []
+        moveUp Nothing prevForest = prevForest
+        moveUp (Just nav) prevForest = moveUp (parent nav) $ (map mkNode $ befores nav) ++
+                                                             [Node (mkEnt nav) prevForest] ++
+                                                             (map mkNode $ afters nav)
                

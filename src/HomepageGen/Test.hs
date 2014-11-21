@@ -6,7 +6,8 @@ import HomepageGen.Data.Navigation  (fromSite,
                                      relativePath,
                                      pageTitle,
                                      logicalPath,
-                                     Navigation)
+                                     Navigation,
+                                     menu)
 import Data.Tree                    (Tree,
                                      drawTree)
 import Data.Tree.Zipper             (TreePos,
@@ -40,3 +41,10 @@ testLogicalPath src =
   do
     sites <- readLocalSites src
     mapM_ printTree $ map (fmap logicalPath) $ map fromSite sites
+
+testMenu :: FilePath
+         -> IO ()
+testMenu src =
+  do
+    sites <- readLocalSites src
+    print $ map (fmap menu) $ map fromSite sites
