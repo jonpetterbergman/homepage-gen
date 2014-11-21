@@ -2,14 +2,18 @@ module HomepageGen.Data.Navigation where
 
 import Data.List              (unfoldr)
 import Data.Maybe             (fromMaybe)
-import Data.Tree              (Tree)
+import Data.Tree              (Tree(..),
+                               Forest)
 import Data.Tree.Zipper       (TreePos,
                                Full(..),
                                fromTree,
                                firstChild,
                                parent,
+                               parents,
                                next,
-                               label)
+                               label,
+                               after,
+                               before)
 import HomepageGen.Data.Site  (LocalSite,
                                LocalPage,
                                LocalContent(..),
@@ -25,10 +29,10 @@ import Text.Pandoc.Shared     (stringify)
 type Navigation = TreePos Full LocalPage
 
 fromSite :: LocalSite 
-         -> [Navigation]
+         -> Tree Navigation
 fromSite tree = go $ fromTree tree 
   where go root =  
-          root:(descendants root)
+          Node root $ descendants root
 
 dup :: a 
     -> (a,a)
@@ -42,9 +46,9 @@ allChildren node = fromMaybe [] $
      return $ first:(unfoldr (fmap dup . next) first)
      
 descendants :: Navigation
-            -> [Navigation]
-descendants = concatMap go . allChildren
-  where go node = node:(concatMap go $ allChildren node)
+            -> Forest Navigation
+descendants = map go . allChildren
+  where go node = Node node (map go $ allChildren node)
 
 ancestors :: Navigation
           -> [Navigation]
@@ -76,6 +80,15 @@ logicalPath :: Navigation
 logicalPath nav =
   (map (\n -> (pageTitle n,relativePath n)) $ (reverse $ ancestors nav),pageTitle nav)
 
-menu :: Navigation
-     -> Tree (String,Maybe String)
-menu = undefined
+--menu :: Navigation
+--     -> Forest (String,Maybe String)
+--menu nav = moveUp (parent nav) $ (mkEnts $ before nav) ++
+--                                 [Node (pageTitle nav,Nothing) []] ++
+--                                 (mkEnts $ after nav)
+--  where mkEnt nav = Node (pageTitle nav, Just $ relativePath nav) []
+--        mkEnts = map mkEnt . map fromTree 
+--        moveUp Nothing prevForest = prevForest
+--        moveUp (Just nav) prevForest = moveUp (parent nav) $ (mkEnts $ before nav) ++
+--                                                             [Node (mkEnt nav) prevForest] ++
+--                                                             (mkEnts $ after nav)
+               

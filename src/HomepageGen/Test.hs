@@ -7,29 +7,36 @@ import HomepageGen.Data.Navigation  (fromSite,
                                      pageTitle,
                                      logicalPath,
                                      Navigation)
+import Data.Tree                    (Tree,
+                                     drawTree)
 import Data.Tree.Zipper             (TreePos,
                                      Full(..),
                                      fromTree,
                                      firstChild,
                                      next)
 
+printTree :: Show a
+          => Tree a
+          -> IO ()
+printTree = putStrLn . drawTree . fmap show
+
 testPaths :: FilePath
-          -> IO [FilePath]
+          -> IO ()
 testPaths src =
   do
     sites <- readLocalSites src
-    return $ map relativePath $ concatMap fromSite sites
+    mapM_ printTree $ map (fmap relativePath) $ map fromSite sites
 
 testTitles :: FilePath
-          -> IO [String]
+          -> IO ()
 testTitles src =
   do
     sites <- readLocalSites src
-    return $ map pageTitle $ concatMap fromSite sites
+    mapM_ printTree $ map (fmap pageTitle) $ map fromSite sites
 
 testLogicalPath :: FilePath
-                -> IO [([(String,FilePath)],String)]
+                -> IO ()
 testLogicalPath src =
   do
     sites <- readLocalSites src
-    return $ map logicalPath $ concatMap fromSite sites
+    mapM_ printTree $ map (fmap logicalPath) $ map fromSite sites
