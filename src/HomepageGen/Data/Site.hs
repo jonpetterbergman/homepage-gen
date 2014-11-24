@@ -14,64 +14,55 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Text            (Text)
 import qualified Data.Text.Lazy    as  LT
 import qualified Data.Traversable  as  Tr
-import           Data.Tree            (Tree(..),
-                                       Forest)
+import           Data.NavTree         (NavTree(..),
+                                       NavForest,
+                                       mapWithKeys)
 import           Text.Pandoc          (Pandoc)
 
 type Lang = String                     
 
-data Page a =
-  Page {
-         urlname  :: FilePath
-       , content  :: a
-       }          
-       deriving Show      
+data Label a =
+  Label {
+          urlname  :: String
+        , nicename :: a
+        }
 
-type IntlPage = Page (Map Lang Pandoc)
+type IntlLabel = Label (Map Lang String)
 
-data LocalContent =
-  LocalContent {
-                 contentLanguage :: Lang 
-               , localContent :: Pandoc
-               }
+type IntlContent = Map Lang Pandoc
 
-type LocalPage = Page LocalContent
+type LocalLabel = Label String
 
-appendPages :: IntlPage 
-            -> IntlPage
-            -> IntlPage
-appendPages p1 p2 = Page (urlname p1) 
-                         (Map.union (content p1) (content p2))
+type LocalContent = Pandoc
 
-type IntlSite = Tree IntlPage
+type IntlSite = NavTree IntlLabel IntlContent
 
-type LocalSite = Tree LocalPage
+type LocalSite = NavTree LocalLabel LocalContent
 
-splitLeaves :: Forest a
-            -> ([a],Forest a)
-splitLeaves = foldr go ([],[])
-  where go (Node x []) (leaves,trees) = (x:leaves,trees)
-        go tree        (leaves,trees) = (leaves,tree:trees)
+--splitLeaves :: Forest a
+--            -> ([a],Forest a)
+--splitLeaves = foldr go ([],[])
+--  where go (Node x []) (leaves,trees) = (x:leaves,trees)
+--        go tree        (leaves,trees) = (leaves,tree:trees)
 
-joinPages :: Forest IntlPage
-          -> Forest IntlPage
-joinPages pgs =
-  let (leaves,trees) = splitLeaves pgs in
-  (map (flip Node $ []) $ Map.elems $ 
-                          foldr (\l -> Map.insertWith appendPages 
-                                                      (urlname l) l) 
-                                mempty leaves)  
-  ++ trees
+--joinPages :: Forest IntlPage
+--          -> Forest IntlPage
+--joinPages pgs =
+--  let (leaves,trees) = splitLeaves pgs in
+--  (map (flip Node $ []) $ Map.elems $ 
+--                          foldr (\l -> Map.insertWith appendPages 
+--                                                      (urlname l) l) 
+--                                mempty leaves)  
+--  ++ trees
 
 localize :: IntlSite
-         -> LocalContent
+         -> (Lang,String,LocalContent)
          -> LocalSite
-localize site defaultPage = fmap go site
-  where go (Page n mp) = 
-          let lang = contentLanguage defaultPage in
-          fromMaybe (Page n $ defaultPage) $ fmap (Page n . LocalContent lang) $ Map.lookup lang mp
+localize site (lang,defaultNiceName,defaultPage) = mapWithKeys localK localC site
+  where localK (Label url mp) = Label url $ fromMaybe defaultNiceName $ Map.lookup lang mp
+        localC mp = fromMaybe defaultPage $ Map.lookup lang mp 
 
 localizes :: IntlSite 
-          -> [LocalContent]
+          -> [(Lang,String,LocalContent)]
           -> [LocalSite]
 localizes site = map $ localize site
