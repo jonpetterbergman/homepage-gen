@@ -17,7 +17,10 @@ import qualified Data.Traversable  as  Tr
 import           Data.NavTree         (NavTree(..),
                                        NavForest,
                                        mapWithKeys)
-import           Text.Pandoc          (Pandoc)
+import           Text.Pandoc          (Pandoc(..),
+                                       Inline,
+                                       docTitle)
+import           Text.Pandoc.Shared   (stringify)
 
 type Lang = String                     
 
@@ -39,11 +42,15 @@ type IntlSite = NavTree IntlLabel IntlContent
 
 type LocalSite = NavTree LocalLabel LocalContent
 
---splitLeaves :: Forest a
---            -> ([a],Forest a)
---splitLeaves = foldr go ([],[])
---  where go (Node x []) (leaves,trees) = (x:leaves,trees)
---        go tree        (leaves,trees) = (leaves,tree:trees)
+splitLeaves :: NavForest k a
+            -> ([(k,a)],NavForest k a)
+splitLeaves = foldr go ([],[])
+  where go (Node k (Right v) []) (leaves,trees) = ((k,v):leaves,trees)
+        go (Node k _         []) (leaves,trees) = (leaves,trees)
+        go tree                  (leaves,trees) = (leaves,tree:trees)
+
+--appendPages :: Bool
+--appendPages = False
 
 --joinPages :: Forest IntlPage
 --          -> Forest IntlPage
@@ -66,3 +73,14 @@ localizes :: IntlSite
           -> [(Lang,String,LocalContent)]
           -> [LocalSite]
 localizes site = map $ localize site
+
+pandocTitle :: Pandoc
+            -> [Inline]
+pandocTitle (Pandoc meta _) = docTitle meta
+
+pageTitle :: Pandoc
+          -> Maybe String
+pageTitle doc = 
+  case stringify $ pandocTitle doc of
+    "" -> Nothing
+    xs -> Just xs
