@@ -4,6 +4,7 @@ module HomepageGen.IO where
 import           Control.Monad             (filterM,
                                             foldM,
                                             guard)
+import           Data.Char                 (isSpace)
 import           Data.Default              (def)
 import           Data.Function             (on)
 import           Data.List                 (isPrefixOf,
@@ -11,6 +12,7 @@ import           Data.List                 (isPrefixOf,
                                             partition,
                                             sortBy,
                                             groupBy,
+                                            deleteBy,
                                             find)
 import qualified Data.Map             as    Map
 import           Data.Map                  (Map)
@@ -37,6 +39,7 @@ import           System.Directory          (getDirectoryContents,
 import           System.FilePath           (combine,
                                             takeExtension,
                                             takeFileName,
+                                            splitExtension,
                                             dropExtension,
                                             splitFileName)
 import           System.FilePath.Glob      (Pattern,
@@ -44,20 +47,22 @@ import           System.FilePath.Glob      (Pattern,
                                             match)
 import           Text.Pandoc               (readMarkdown)
 
+import Debug.Trace
+
+splitLang :: FilePath
+          -> (FilePath,Lang)
+splitLang fname = go $ splitExtension fname
+  where go (base,".md")          = (fname,"en")
+        go (base,['.',x,y])      = (base ,[x,y])
+        go (base,xs)             = (fname,"en")
+
 fileLang :: FilePath 
          -> Lang
-fileLang = go . takeExtension
-  where go ".md" = "en"
-        go xs@['.',x,y] = [x,y]
-        go xs = error $ "Cannot understand language: " ++ xs
+fileLang = snd . splitLang
 
 dropLangExtension :: FilePath 
                   -> FilePath
-dropLangExtension filename = 
-  case takeExtension filename of
-    ".md" -> filename
-    ['.',x,y] -> dropExtension filename
-    xs -> error $ "Cannot understand language: " ++ xs
+dropLangExtension = fst . splitLang
     
 dropMdExtension :: FilePath
                 -> FilePath
@@ -65,21 +70,22 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
                   reverse $ drop 3 $ reverse filename
                          | otherwise = filename
 
-
 readPage :: FilePath
          -> FilePath
          -> IO (IntlLabel,IntlContent)
 readPage dir fname =
-  let lang = fileLang fname in
+  let (basename,lang) = splitLang fname in
   do
     contents <- fmap (readMarkdown def) $ readFile $ combine dir fname
-    return $ (Label (dropMdExtension $ dropLangExtension fname) 
-                    (maybe Map.empty (Map.singleton lang) $ pageTitle contents), 
-              Map.singleton lang contents)
+    return $ (Label (dropMdExtension basename) 
+                    (maybe Map.empty (Map.singleton lang) $ 
+                           pageTitle contents), 
+                    Map.singleton lang contents)
 
 readIgnore :: FilePath
            -> IO [Pattern]
-readIgnore dir = fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
+readIgnore dir = 
+  fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
 
 readDefault :: FilePath
             -> IO (Lang,String,LocalContent)
@@ -89,14 +95,19 @@ readDefault fname =
     return (fileLang fname,maybe err id $ pageTitle contents,contents)
   where err = error $ "default file: " ++ show fname ++ " doesn't have a title" 
 
+filterDirectoryContents :: (FilePath -> Bool)
+                        -> FilePath
+                        -> IO [FilePath]
+filterDirectoryContents p = fmap (filter p) . getDirectoryContents
+
 readDefaults :: [Pattern]
              -> FilePath
              -> IO [(Lang,String,LocalContent)]
 readDefaults globs dir = 
+  let isDefault fname = "default.md" `isPrefixOf` fname &&
+                        not (or $ map (flip match $ fname) globs) in
   do
-    dfiles <- fmap (filter (\f -> "default.md" `isPrefixOf` f && 
-                                  not (or $ map (flip match $ f) globs))) $ 
-                   getDirectoryContents dir
+    dfiles <- filterDirectoryContents isDefault dir
     mapM readDefault $ map (combine dir) dfiles
 
 valid :: [Pattern]
@@ -120,7 +131,7 @@ readNodeName :: FilePath
             -> IO (Lang,String)
 readNodeName fname =
   do
-    content <- readFile fname
+    content <- fmap trim $ readFile fname
     return (fileLang fname,content)
 
 maybeRun :: (Monad m,Functor m)
@@ -132,20 +143,22 @@ maybeRun test act =
   where go False = return Nothing
         go True  = fmap Just act
 
+trim :: String
+     -> String
+trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
 readFlatten :: [Pattern]
             -> FilePath
             -> IO (Maybe (String,Map Lang String))
 readFlatten globs dir =
-  let fname = combine dir "flatten" in
-   maybeRun (doesFileExist fname) $ do
-     hasFlatten        <- doesFileExist fname
-     guard                hasFlatten
-     baseName          <- readFile fname
-     nodenamefiles     <- fmap (filter (\f -> "dirname" `isPrefixOf` f &&
-                                        not (or $ map (flip match $ f) globs))) $ 
-                                getDirectoryContents dir
-     nodename          <- mapM readNodeName $ map (combine dir) nodenamefiles
-     return (baseName,Map.fromList nodename)
+  let fname           = combine dir "flatten" 
+      isDirname fname = "dirname" `isPrefixOf` fname &&
+                        not (or $ map (flip match $ fname) globs) in  
+  maybeRun (doesFileExist fname) $ do
+    baseName          <- fmap trim $ readFile fname
+    nodenamefiles     <- filterDirectoryContents isDirname dir
+    nodename          <- mapM readNodeName $ map (combine dir) nodenamefiles
+    return (baseName,Map.fromList nodename)
 
 readIndex :: FilePath
           -> [FilePath]
@@ -171,13 +184,15 @@ select :: Monad m
 select p (ts,fs) x = 
   do
     r <- p x
-    return $ if r then (x:ts,fs) else (ts, x:fs)
+    return $ if r then (x:ts,fs) else (ts,x:fs)
 
 joinLeaves :: [(IntlLabel,IntlContent)]
            -> NavForest IntlLabel IntlContent
-joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) . sortBy (compare `on` (urlname . fst)) 
+joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) . 
+                           sortBy (compare `on` (urlname . fst)) 
   where go [] = Nothing
-        go xs@(h:t) = Just $ Node (Label (urlname $ fst h) (Map.unions $ map (nicename . fst) xs))
+        go xs@(h:t) = Just $ Node (Label (urlname $ fst h) 
+                                         (Map.unions $ map (nicename . fst) xs))
                                   (Right $ Map.unions $ map snd xs) []
                         
 readDir :: [Pattern]
@@ -185,27 +200,23 @@ readDir :: [Pattern]
         -> IO IntlSite
 readDir globs dir =
   do
-    (ixfiles,rest)   <- fmap (partition (isPrefixOf "index") . filter (valid globs)) $ 
-                              getDirectoryContents dir
-    (k,v)            <- readIndex dir ixfiles
-    flatten          <- readFlatten globs dir
-    (dirnames,leafnames)     <- partitionM doesDirectoryExist rest
-    dirs <- mapM (readDir globs . combine dir) dirnames
-    leafs <- mapM (readPage dir) leafnames
+    (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
+                                 filterDirectoryContents (valid globs) dir
+    (k,v)                <- readIndex dir ixfiles
+    flatten              <- readFlatten globs dir
+    (dirnames,leafnames) <- partitionM (doesDirectoryExist . combine dir) rest
+    dirs                 <- mapM (readDir globs . combine dir) dirnames
+    leafs                <- mapM (readPage dir) leafnames
     return $ let forest = dirs ++ (joinLeaves leafs) in
              case flatten of
                Nothing -> 
                  Node k (Right v) forest
                Just (basename,nodename) ->
-                 Node (k { nicename = nodename }) (Left $ fromMaybe (error $ "cannot find node: " ++ basename) $ find (\n -> basename == urlname (key n)) (dirs ++ (joinLeaves leafs))) undefined
-
---readNode :: [Pattern]
---         -> FilePath
---         -> IO IntlSite
---readNode globs fname = 
---  do
---    isDir <- doesDirectoryExist fname
---    if isDir then readDir globs fname else readLeaf fname
+                 case partition (\n -> basename == urlname (key n)) forest of
+                   ([],_) -> error $ "cannot find node: " ++ show basename ++ 
+                                     " in: " ++ show rest
+                   (h:t,xs) -> 
+                     Node (k { nicename = nodename }) (Left h) xs
 
 readLocalSites :: FilePath
                -> IO [LocalSite]
