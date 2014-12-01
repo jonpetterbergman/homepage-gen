@@ -5,6 +5,7 @@ module HomepageGen.Data.Site where
 
 import           Control.Monad        (join)
 import           Data.Function        (on)
+import           Data.LanguageCodes   (ISO639_1)
 import           Data.List            (groupBy,
                                        sortBy)
 import           Data.Map             (Map)
@@ -22,7 +23,7 @@ import           Text.Pandoc          (Pandoc(..),
                                        docTitle)
 import           Text.Pandoc.Shared   (stringify)
 
-type Lang = String                     
+type Lang = ISO639_1                     
 
 data Label a =
   Label {

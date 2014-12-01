@@ -7,6 +7,8 @@ import           Control.Monad             (filterM,
 import           Data.Char                 (isSpace)
 import           Data.Default              (def)
 import           Data.Function             (on)
+import           Data.LanguageCodes        (ISO639_1(..))
+import qualified Data.LanguageCodes   as    ISO639_1
 import           Data.List                 (isPrefixOf,
                                             isSuffixOf,
                                             partition,
@@ -52,9 +54,8 @@ import Debug.Trace
 splitLang :: FilePath
           -> (FilePath,Lang)
 splitLang fname = go $ splitExtension fname
-  where go (base,".md")          = (fname,"en")
-        go (base,['.',x,y])      = (base ,[x,y])
-        go (base,xs)             = (fname,"en")
+  where go (base,['.',x,y]) = maybe (fname,ISO639_1.EN) (base,) $ ISO639_1.fromChars x y 
+        go _                = (fname,ISO639_1.EN)
 
 fileLang :: FilePath 
          -> Lang
