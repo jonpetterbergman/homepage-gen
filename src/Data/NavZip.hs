@@ -1,5 +1,6 @@
 module Data.NavZip where
 
+import           Data.List        (unfoldr)
 import           Data.NavTree     (NavTree(..),
                                    NavForest,   
                                    drawTree,
@@ -46,6 +47,7 @@ right :: NavZip k a
       -> Maybe (NavZip k a)
 right (NavZip a lev) = fmap (NavZip a) $ levelRight lev
 
+
 levelLeftMost :: NavLevel k a
               -> NavLevel k a
 levelLeftMost lev = maybe lev levelLeftMost $ levelLeft lev
@@ -53,6 +55,20 @@ levelLeftMost lev = maybe lev levelLeftMost $ levelLeft lev
 levelRightMost :: NavLevel k a
                -> NavLevel k a
 levelRightMost lev = maybe lev levelRightMost $ levelRight lev
+
+dup :: a 
+    -> (a,a)
+dup x = (x,x)
+
+levelAll :: NavLevel k a
+         -> [NavLevel k a]
+levelAll nav = 
+  let start = levelLeftMost nav in
+  start:(unfoldr (fmap dup . levelRight) start)
+
+allOnLevel :: NavZip k a
+           -> [NavZip k a]
+allOnLevel (NavZip a lev) = map (NavZip a) $ levelAll lev
 
 up :: NavZip k a 
    -> Maybe (NavZip k a)
@@ -77,6 +93,13 @@ firstChild (NavZip t (Level b (Node key val frst) a)) =
       Just $ NavZip ((Level b (key,Just val') a):t) (Level [] x xs)
     _ ->
       Nothing
+
+followLink :: NavZip k a
+           -> NavZip k a
+followLink nav@(NavZip t (Level b (Node key val frst) a)) =
+  case val of
+    (Left _)  -> maybe nav followLink $ firstChild nav
+    (Right _) -> nav 
 
 adjustKey :: (k -> k)
           -> NavZip k a
