@@ -42,10 +42,15 @@ relativePath lang nav =
                        | otherwise                   = [pathElement nav,"index.html" ++ langExt]
 
 
---logicalPath :: Navigation
---            -> ([(String,FilePath)],String)
---logicalPath nav =
---  (map (\n -> (pageTitle n,relativePath n)) $ (reverse $ ancestors nav),pageTitle nav)
+pageTitle :: Navigation
+          -> String
+pageTitle = nicename . key . here . level
+
+logicalPath :: Lang
+            -> Navigation
+            -> ([(String,FilePath)],String)
+logicalPath lang nav =
+  (map (\n -> (pageTitle n,relativePath lang n)) $ (reverse $ ancestors nav),pageTitle nav)
 
 --befores :: Navigation
 --        -> [Navigation]

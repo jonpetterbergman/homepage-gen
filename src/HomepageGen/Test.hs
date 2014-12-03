@@ -4,7 +4,8 @@ import HomepageGen.IO               (readLocalSites)
 import HomepageGen.Data.Site        (urlname,
                                      Label(..))
 import HomepageGen.Data.Navigation  (fromSite,
-                                     relativePath)
+                                     relativePath,
+                                     logicalPath)
 --                                     pageTitle,
 --                                     logicalPath,
 --                                     Navigation,
@@ -41,19 +42,13 @@ testPaths src =
     mapM_ printTree $ map (\(l,t) -> mapValues (relativePath l) t) 
        $ map (\(l,t) -> (l,mapKeys nicename $ fromSite t)) sites
 
---testTitles :: FilePath
---          -> IO ()
---testTitles src =
---  do
---    sites <- readLocalSites src
---    mapM_ printTree $ map (fmap pageTitle) $ map fromSite sites
-
---testLogicalPath :: FilePath
---                -> IO ()
---testLogicalPath src =
---  do
---    sites <- readLocalSites src
---    mapM_ printTree $ map (fmap logicalPath) $ map fromSite sites
+testLogicalPath :: FilePath
+                -> IO ()
+testLogicalPath src =
+  do
+    sites <- readLocalSites src
+    mapM_ printTree $ map (\(l,t) -> mapValues (logicalPath l) t)
+       $ map (\(l,t) -> (l,mapKeys urlname $ fromSite t)) sites
 
 --testMenu :: FilePath
 --         -> IO ()
