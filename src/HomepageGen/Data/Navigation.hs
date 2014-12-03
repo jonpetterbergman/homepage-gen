@@ -1,13 +1,21 @@
 module HomepageGen.Data.Navigation where
 
+import Data.Char              (toLower)
 import Data.List              (unfoldr)
 import Data.Maybe             (fromMaybe)
 import Data.NavTree           (NavTree(..),
-                               NavForest)
-import Data.NavZip            (NavZip,
+                               NavForest,
+                               isLeaf)
+import Data.NavZip            (NavZip(..),
                                fromTree,
-                               followLink)
-import HomepageGen.Data.Site  (LocalLabel,
+                               everything,
+                               followLink,
+                               here,
+                               level,   
+                               ancestors)
+import HomepageGen.Data.Site  (Label(..),
+                               Lang,
+                               LocalLabel,
                                LocalContent,
                                LocalSite)
 import System.FilePath        (joinPath)
@@ -19,51 +27,20 @@ import Text.Pandoc.Shared     (stringify)
 type Navigation = NavZip LocalLabel LocalContent
 
 fromSite :: LocalSite 
-         -> Navigation
-fromSite = followLink . fromTree --go $ fromTree tree 
---  where go root =  
---          Node root $ descendants root
+         -> NavTree LocalLabel Navigation
+fromSite = everything . fromTree
 
---dup :: a 
---    -> (a,a)
---dup x = (x,x)
+relativePath :: Lang
+             -> Navigation
+             -> FilePath
+relativePath lang nav = 
+  joinPath $ (map pathElement $ reverse $ ancestors nav) ++
+             (mkFilename nav)
+  where pathElement                                  = urlname . key . here . level
+        langExt                                      = "." ++ (map toLower $ show lang)
+        mkFilename nav | (isLeaf $ here $ level nav) = [(pathElement nav) ++ ".html" ++ langExt]
+                       | otherwise                   = [pathElement nav,"index.html" ++ langExt]
 
---allChildren :: Navigation 
---            -> [Navigation]
---allChildren node = fromMaybe [] $
---  do
---     first <- firstChild node
---     return $ first:(unfoldr (fmap dup . next) first)
-     
---descendants :: Navigation
---            -> Forest Navigation
---descendants = map go . allChildren
---  where go node = Node node (map go $ allChildren node)
-
---ancestors :: Navigation
---          -> [Navigation]
---ancestors = unfoldr (fmap dup . parent)
-
---relativePath :: Navigation
---             -> FilePath
---relativePath nav = 
---  joinPath $ (map pathElement $ reverse $ ancestors nav) ++
---             (mkFilename nav)
---  where pathElement                             = urlname . label
---        langExt                                 = "." ++ (contentLanguage $ content $ label nav)
---        mkFilename nav | null (allChildren nav) = [(pathElement nav) ++ ".html" ++ langExt]
---                       | otherwise              = [pathElement nav,"index.html" ++ langExt]
-
---pandocTitle :: Pandoc
---            -> [Inline]
---pandocTitle (Pandoc meta _) = docTitle meta
-
---pageTitle :: Navigation
---          -> String
---pageTitle nav = 
---  case stringify $ pandocTitle $ localContent $ content $ label nav of
---    "" -> urlname $ label nav
---    xs -> xs
 
 --logicalPath :: Navigation
 --            -> ([(String,FilePath)],String)

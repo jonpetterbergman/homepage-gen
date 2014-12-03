@@ -220,7 +220,7 @@ readDir globs dir =
                      Node (k { nicename = nodename }) (Left h) xs
 
 readLocalSites :: FilePath
-               -> IO [LocalSite]
+               -> IO [(Lang,LocalSite)]
 readLocalSites fname =
   do
     globs <- readIgnore fname

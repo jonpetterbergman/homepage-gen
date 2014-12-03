@@ -21,6 +21,11 @@ subForest :: NavTree a b
 	  -> NavForest a b
 subForest t = (either return (const []) $ value t) ++ (_subForest t) 
 
+isLeaf :: NavTree a b
+       -> Bool
+isLeaf (Node _ (Right _) []) = True
+isLeaf _                     = False
+
 test = Node "petter" (Right ()) [photo,axis,deep,haskell]
   where photo    = Node "photo"  (Right ())    [photo1,photo2,photo3]
         photo1   = Node "photo1" (Right ())    []
@@ -39,6 +44,12 @@ test = Node "petter" (Right ()) [photo,axis,deep,haskell]
         haskell  = Node "haskell" (Right ())   [haskell1,haskell2]
         haskell1 = Node "haskell1" (Right ()) []
         haskell2 = Node "haskell2" (Right ()) [] 
+
+mapValues :: (v -> v')
+          -> NavTree k v
+          -> NavTree k v'
+mapValues f (Node k v sf) =
+  Node k (either (Left . mapValues f) (Right . f) v) $ map (mapValues f) sf
 
 mapKeys :: (k -> k') 
         -> NavTree k v
@@ -61,20 +72,22 @@ pad :: a
 pad c xs = map (padn (maximum $ map length xs)) xs
   where padn n x = take n $ x ++ (repeat c)
 
-drawTree :: NavTree String b
+drawTree :: NavTree String String
          -> String
-drawTree = intercalate "\n" . map concat . transpose . map (pad ' ') . transpose . pad "" . toList . go
-  where marry (h :| t) (h' :| t') = (h ++ h') :| ((map indent t') ++ t)
-        indent xs = [""] ++ xs
+drawTree nav = 
+  let (keytbl,vals) = unzip $ toList $ go nav in
+  intercalate "\n" $ zipWith (\v k -> k ++ " " ++ (fromMaybe "-" v)) vals $ map concat $ transpose $ map (pad ' ') $ transpose $ pad "" $ keytbl
+  where marry ((h,_) :| t) ((h',x) :| t') = (h ++ h',x) :| ((map indent t') ++ t)
+        indent (xs,x) = ([""] ++ xs,x)
         go node = 
           let xs = concatMap (toList . go) $ _subForest node in
           case value node of
             Left node' ->
-              marry ([key node] :| (map indent xs)) (go node')
-            Right _    ->
-              [key node] :| (map indent xs)
+              marry (([key node],Nothing) :| (map indent xs)) (go node')
+            Right x    ->
+              ([key node],Just x) :| (map indent xs)
 
         
-ppTree :: NavTree String b
+ppTree :: NavTree String String
        -> IO ()
 ppTree = putStrLn . drawTree

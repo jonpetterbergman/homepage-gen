@@ -73,8 +73,9 @@ localize site (lang,defaultNiceName,defaultPage) = mapWithKeys localK localC sit
 
 localizes :: IntlSite 
           -> [(Lang,String,LocalContent)]
-          -> [LocalSite]
-localizes site = map $ localize site
+          -> [(Lang,LocalSite)]
+localizes site = map go
+  where go tr@(lang,_,_) = (lang,localize site tr)
 
 pandocTitle :: Pandoc
             -> [Inline]

@@ -89,7 +89,7 @@ everything z@(NavZip t (Level b (Node k v frst) a)) = Node k v' frst'
            (Right rv,(x:xs)) -> 
              let first = NavZip ((Level b (k,Just rv) a):t) $ Level [] x xs in
              (Right z,map everything $ allOnLevel first)
-           (Right rv,[]) ->
+           (Right _,[]) ->
              (Right z,[])
 
 
@@ -101,6 +101,10 @@ up (NavZip ((Level b (key,val) a):t) l) =
   case val of
     Nothing   -> Just $ NavZip t $ Level b (Node key (Left this) xs) a
     Just val' -> Just $ NavZip t $ Level b (Node key (Right val') (this:xs)) a
+
+ancestors :: NavZip k a
+          -> [NavZip k a]
+ancestors = unfoldr (fmap dup . up)
 
 top :: NavZip k a
     -> NavZip k a
@@ -134,14 +138,14 @@ adjustKey :: (k -> k)
 adjustKey f (NavZip t (Level b (Node k v frst) a)) = 
   NavZip t (Level b (Node (f k) v frst) a)
 
-drawZip :: NavZip String a
+drawZip :: NavZip String String
         -> String
 drawZip = drawTree . here . level . top . adjustKey (++ "<-")
 
-ppZip :: NavZip String a  
+ppZip :: NavZip String String  
       -> IO ()
 ppZip = putStrLn . drawZip
 
-ppMZip :: Maybe (NavZip String a)
+ppMZip :: Maybe (NavZip String String)
        -> IO ()
 ppMZip = maybe (putStrLn "NOTHING") ppZip
