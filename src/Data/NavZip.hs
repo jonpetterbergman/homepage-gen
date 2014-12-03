@@ -60,15 +60,38 @@ dup :: a
     -> (a,a)
 dup x = (x,x)
 
+levelRights :: NavLevel k a
+            -> [NavLevel k a]
+levelRights = unfoldr (fmap dup . levelRight)
+
+rights :: NavZip k a
+       -> [NavZip k a]
+rights (NavZip a lev) = map (NavZip a) $ levelRights lev
+
 levelAll :: NavLevel k a
          -> [NavLevel k a]
 levelAll nav = 
   let start = levelLeftMost nav in
-  start:(unfoldr (fmap dup . levelRight) start)
+  start:(levelRights start)
 
 allOnLevel :: NavZip k a
            -> [NavZip k a]
 allOnLevel (NavZip a lev) = map (NavZip a) $ levelAll lev
+
+everything :: NavZip k a
+           -> NavTree k (NavZip k a)
+everything z@(NavZip t (Level b (Node k v frst) a)) = Node k v' frst'
+  where (v',frst') =
+         case (v,frst) of
+           (Left n,_) -> 
+             let first = NavZip ((Level b (k,Nothing) a):t) $ Level [] n frst in
+             (Left $ everything first,map everything $ rights first)
+           (Right rv,(x:xs)) -> 
+             let first = NavZip ((Level b (k,Just rv) a):t) $ Level [] x xs in
+             (Right z,map everything $ allOnLevel first)
+           (Right rv,[]) ->
+             (Right z,[])
+
 
 up :: NavZip k a 
    -> Maybe (NavZip k a)
@@ -83,16 +106,20 @@ top :: NavZip k a
     -> NavZip k a
 top nav = maybe nav top $ up nav
 
-firstChild :: NavZip k a
-           -> Maybe (NavZip k a)
-firstChild (NavZip t (Level b (Node key val frst) a)) =
+firstChildOrValue :: NavZip k a
+                  -> Either a (NavZip k a)
+firstChildOrValue (NavZip t (Level b (Node key val frst) a)) =
   case (val,frst) of 
     (Left n,xs) ->
-      Just $ NavZip ((Level b (key,Nothing) a):t) (Level [] n xs)
+      Right $ NavZip ((Level b (key,Nothing) a):t) (Level [] n xs)
     (Right val',(x:xs)) ->
-      Just $ NavZip ((Level b (key,Just val') a):t) (Level [] x xs)
-    _ ->
-      Nothing
+      Right $ NavZip ((Level b (key,Just val') a):t) (Level [] x xs)
+    (Right val',_) ->
+      Left val'
+
+firstChild :: NavZip k a
+           -> Maybe (NavZip k a)
+firstChild = either (const Nothing) Just . firstChildOrValue
 
 followLink :: NavZip k a
            -> NavZip k a
