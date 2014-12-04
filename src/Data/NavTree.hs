@@ -2,7 +2,7 @@ module Data.NavTree where
 
 import           Data.List               (intercalate,
                                           transpose)
-import           Data.List.NonEmpty      (NonEmpty(..),toList)
+import           Data.List.NonEmpty      (NonEmpty(..))
 import qualified Data.List.NonEmpty as    NE
 import           Data.Maybe              (fromMaybe)
 import           Data.Either.Combinators (mapBoth)
@@ -66,6 +66,11 @@ mapWithKeys f g (Node k v sf) =
       v' = mapBoth (mapWithKeys f g) g v in
   Node k' v' $ map (mapWithKeys f g) sf
 
+toList :: NavTree k v
+       -> [(k,v)]
+toList (Node _ (Left  n) ns) = toList n ++ (concatMap toList ns)
+toList (Node k (Right v) ns) = (k,v):(concatMap toList ns)
+
 pad :: a
     -> [[a]]
     -> [[a]]
@@ -75,12 +80,12 @@ pad c xs = map (padn (maximum $ map length xs)) xs
 drawTree :: NavTree String String
          -> String
 drawTree nav = 
-  let (keytbl,vals) = unzip $ toList $ go nav in
+  let (keytbl,vals) = unzip $ NE.toList $ go nav in
   intercalate "\n" $ zipWith (\v k -> k ++ " " ++ (fromMaybe "-" v)) vals $ map concat $ transpose $ map (pad ' ') $ transpose $ pad "" $ keytbl
   where marry ((h,_) :| t) ((h',x) :| t') = (h ++ h',x) :| ((map indent t') ++ t)
         indent (xs,x) = ([""] ++ xs,x)
         go node = 
-          let xs = concatMap (toList . go) $ _subForest node in
+          let xs = concatMap (NE.toList . go) $ _subForest node in
           case value node of
             Left node' ->
               marry (([key node],Nothing) :| (map indent xs)) (go node')

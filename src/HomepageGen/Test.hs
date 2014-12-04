@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module HomepageGen.Test where
 
 import HomepageGen.IO               (readLocalSites)
@@ -5,7 +6,8 @@ import HomepageGen.Data.Site        (urlname,
                                      Label(..))
 import HomepageGen.Data.Navigation  (fromSite,
                                      relativePath,
-                                     logicalPath)
+                                     logicalPath,
+                                     menu)
 --                                     pageTitle,
 --                                     logicalPath,
 --                                     Navigation,
@@ -13,7 +15,10 @@ import HomepageGen.Data.Navigation  (fromSite,
 import Data.NavTree                 (NavTree,
                                      ppTree,
                                      mapValues,
-                                     mapKeys)
+                                     mapKeys,   
+                                     toList)
+import Data.Tree                    (drawForest,
+                                     Forest)
 --import Data.Tree.Zipper             (TreePos,
 --                                     Full(..),
 --                                     fromTree,
@@ -50,9 +55,15 @@ testLogicalPath src =
     mapM_ printTree $ map (\(l,t) -> mapValues (logicalPath l) t)
        $ map (\(l,t) -> (l,mapKeys urlname $ fromSite t)) sites
 
---testMenu :: FilePath
---         -> IO ()
---testMenu src =
---  do
---    sites <- readLocalSites src
---    print $ map (fmap menu) $ map fromSite sites
+testMenu :: FilePath
+         -> IO ()
+testMenu src =
+  do
+    sites <- readLocalSites src
+    mapM_ (mapM_ go) $ map (\(l,t) -> toList $ mapValues (menu l) t)
+       $ map (\(l,t) -> (l,mapKeys urlname $ fromSite t)) sites
+  where go (k,(v :: Forest (String,Maybe String))) =
+          do
+            print k     
+            putStrLn $ drawForest $ map (fmap show) v
+  
