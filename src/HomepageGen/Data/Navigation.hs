@@ -1,28 +1,36 @@
 module HomepageGen.Data.Navigation where
 
-import Data.Char              (toLower)
-import Data.List              (unfoldr)
-import Data.Maybe             (fromMaybe)
-import Data.NavTree           (NavTree(..),
-                               NavForest,
-                               isLeaf)
-import Data.NavZip            (NavZip(..),
-                               fromTree,
-                               everything,
-                               followLink,
-                               here,
-                               level,   
-                               ancestors)
-import HomepageGen.Data.Site  (Label(..),
-                               Lang,
-                               LocalLabel,
-                               LocalContent,
-                               LocalSite)
-import System.FilePath        (joinPath)
-import Text.Pandoc.Definition (docTitle,
-                               Pandoc(..),
-                               Inline(..))
-import Text.Pandoc.Shared     (stringify)
+import           Data.Char              (toLower)
+import           Data.List              (unfoldr)
+import           Data.Maybe             (fromMaybe)
+import           Data.Tree              (Tree,
+                                         Forest)
+import qualified Data.Tree           as Tree
+import           Data.NavTree           (NavTree(..),
+                                         NavForest,
+                                         isLeaf)
+import           Data.NavZip            (NavZip(..),
+                                         fromTree,
+                                         everything,
+                                         followLink,
+                                         here,
+                                         level,
+                                         up,   
+                                         before,
+                                         after,
+                                         ancestors,
+                                         lefts,
+                                         rights)
+import           HomepageGen.Data.Site  (Label(..),
+                                         Lang,
+                                         LocalLabel,
+                                         LocalContent,
+                                         LocalSite)
+import           System.FilePath        (joinPath)
+import           Text.Pandoc.Definition (docTitle,
+                                         Pandoc(..),
+                                         Inline(..))
+import           Text.Pandoc.Shared     (stringify)
 
 type Navigation = NavZip LocalLabel LocalContent
 
@@ -52,23 +60,16 @@ logicalPath :: Lang
 logicalPath lang nav =
   (map (\n -> (pageTitle n,relativePath lang n)) $ (reverse $ ancestors nav),pageTitle nav)
 
---befores :: Navigation
---        -> [Navigation]
---befores = unfoldr (fmap dup . prev)
-
---afters :: Navigation
---       -> [Navigation]
---afters = unfoldr (fmap dup . prev)
-
---menu :: Navigation
---     -> Forest (String,Maybe String)
---menu nav = moveUp (parent nav) $ (map mkNode $ befores nav) ++
---                                 [Node (pageTitle nav,Nothing) []] ++
---                                 (map mkNode $ afters nav)
---  where mkEnt nav = (pageTitle nav, Just $ relativePath nav)
---        mkNode nav = Node (mkEnt nav) []
---        moveUp Nothing prevForest = prevForest
---        moveUp (Just nav) prevForest = moveUp (parent nav) $ (map mkNode $ befores nav) ++
---                                                             [Node (mkEnt nav) prevForest] ++
---                                                             (map mkNode $ afters nav)
+menu :: Lang
+     -> Navigation
+     -> Forest (String,Maybe String)
+menu lang nav = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
+                                   [Tree.Node (pageTitle nav,Nothing) []] ++
+                                   (map mkNode $ rights nav)
+  where mkEnt nav = (pageTitle nav, Just $ relativePath lang nav)
+        mkNode nav = Tree.Node (mkEnt nav) []
+        moveUp Nothing prevForest = prevForest
+        moveUp (Just nav) prevForest = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
+                                                          [Tree.Node (mkEnt nav) prevForest] ++
+                                                          (map mkNode $ rights nav)
                

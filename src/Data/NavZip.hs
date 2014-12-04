@@ -64,9 +64,17 @@ levelRights :: NavLevel k a
             -> [NavLevel k a]
 levelRights = unfoldr (fmap dup . levelRight)
 
+levelLefts :: NavLevel k a
+           -> [NavLevel k a]
+levelLefts = unfoldr (fmap dup . levelLeft)
+
 rights :: NavZip k a
        -> [NavZip k a]
 rights (NavZip a lev) = map (NavZip a) $ levelRights lev
+
+lefts :: NavZip k a
+       -> [NavZip k a]
+lefts (NavZip a lev) = map (NavZip a) $ levelLefts lev
 
 levelAll :: NavLevel k a
          -> [NavLevel k a]
