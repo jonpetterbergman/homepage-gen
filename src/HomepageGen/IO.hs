@@ -1,53 +1,57 @@
 {-# LANGUAGE TupleSections #-}
 module HomepageGen.IO where
 
-import           Control.Monad             (filterM,
-                                            foldM,
-                                            guard)
-import           Data.Char                 (isSpace)
-import           Data.Default              (def)
-import           Data.Function             (on)
-import           Data.LanguageCodes        (ISO639_1(..))
-import qualified Data.LanguageCodes   as    ISO639_1
-import           Data.List                 (isPrefixOf,
-                                            isSuffixOf,
-                                            partition,
-                                            sortBy,
-                                            groupBy,
-                                            deleteBy,
-                                            find)
-import qualified Data.Map             as    Map
-import           Data.Map                  (Map)
-import           Data.Maybe                (mapMaybe,
-                                            fromMaybe)
-import           Data.Monoid               (Monoid(..))
-import qualified Data.Text            as    T
-import qualified Data.Text.Lazy       as    LT
-import qualified Data.Text.Lazy.IO    as    LTIO
-import           Data.NavTree              (NavTree(..),
-                                            NavForest)
-import           HomepageGen.Data.Site     (IntlSite,
-                                            LocalSite,
-                                            localizes,
-                                            IntlLabel,
-                                            IntlContent,
-                                            Label(..),
-                                            LocalContent(..),
-                                            Lang,
-                                            pageTitle)
-import           System.Directory          (getDirectoryContents,
-                                            doesDirectoryExist,
-                                            doesFileExist)
-import           System.FilePath           (combine,
-                                            takeExtension,
-                                            takeFileName,
-                                            splitExtension,
-                                            dropExtension,
-                                            splitFileName)
-import           System.FilePath.Glob      (Pattern,
-                                            compile,
-                                            match)
-import           Text.Pandoc               (readMarkdown)
+import           Control.Monad                   (filterM,
+                                                  foldM,
+                                                  guard)
+import           Data.Char                       (isSpace)
+import           Data.Default                    (def)
+import           Data.Function                   (on)
+import           Data.LanguageCodes              (ISO639_1(..))
+import qualified Data.LanguageCodes         as    ISO639_1
+import           Data.List                       (isPrefixOf,
+                                                  isSuffixOf,
+                                                  partition,
+                                                  sortBy,
+                                                  groupBy,
+                                                  deleteBy,
+                                                  find)
+import qualified Data.Map                   as    Map
+import           Data.Map                        (Map)
+import           Data.Maybe                      (mapMaybe,
+                                                  fromMaybe)
+import           Data.Monoid                     (Monoid(..))
+import qualified Data.Text                  as    T
+import qualified Data.Text.Lazy             as    LT
+import qualified Data.Text.Lazy.IO          as    LTIO
+import           Data.NavTree                    (NavTree(..),
+                                                  NavForest)
+import           HomepageGen.Data.Navigation     (Navigation,
+                                                  relativePath)
+import           HomepageGen.Data.Site           (IntlSite,
+                                                  LocalSite,
+                                                  localizes,
+                                                  IntlLabel,
+                                                  IntlContent,
+                                                  Label(..),
+                                                  LocalContent(..),
+                                                  Lang,
+                                                  pageTitle)
+import           HomepageGen.Html.Template       (Template)
+import           System.Directory                (getDirectoryContents,
+                                                  doesDirectoryExist,
+                                                  doesFileExist)
+import           System.FilePath                 (combine,
+                                                  takeExtension,
+                                                  takeFileName,
+                                                  splitExtension,
+                                                  dropExtension,
+                                                  splitFileName)
+import           System.FilePath.Glob            (Pattern,
+                                                  compile,
+                                                  match)
+import           Text.Blaze.Html.Renderer.Pretty (renderHtml)
+import           Text.Pandoc                     (readMarkdown)
 
 import Debug.Trace
 
@@ -227,3 +231,11 @@ readLocalSites fname =
     site  <- readDir globs fname
     defs  <- readDefaults globs fname
     return $ localizes site defs
+
+writePage :: (Lang,[Lang],Navigation)
+          -> FilePath
+          -> Template
+          -> IO ()
+writePage page@(lang,langs,nav) dir template =
+  let filename = combine dir $ relativePath lang nav in
+  writeFile filename $ renderHtml $ template page  

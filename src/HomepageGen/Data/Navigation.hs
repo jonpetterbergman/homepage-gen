@@ -1,14 +1,17 @@
+{-# LANGUAGE TupleSections #-}
 module HomepageGen.Data.Navigation where
 
 import           Data.Char              (toLower)
-import           Data.List              (unfoldr)
+import           Data.List              (unfoldr,
+                                         delete)
 import           Data.Maybe             (fromMaybe)
 import           Data.Tree              (Tree,
                                          Forest)
 import qualified Data.Tree           as Tree
 import           Data.NavTree           (NavTree(..),
                                          NavForest,
-                                         isLeaf)
+                                         isLeaf,
+                                         toList)
 import           Data.NavZip            (NavZip(..),
                                          fromTree,
                                          everything,
@@ -73,3 +76,9 @@ menu lang nav = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
                                                           [Tree.Node (mkEnt nav) prevForest] ++
                                                           (map mkNode $ rights nav)
                
+allPages :: [(Lang,LocalSite)]
+         -> [(Lang,[Lang],Navigation)]
+allPages sites = 
+  let langs    = map fst sites 
+      navTrees = map (\(lang,site) -> (lang,fromSite site)) sites in
+ concatMap (\(lang,navTree) -> map (lang,delete lang langs,) $ map snd $ toList navTree) navTrees

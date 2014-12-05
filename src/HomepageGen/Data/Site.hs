@@ -87,3 +87,4 @@ pageTitle doc =
   case stringify $ pandocTitle doc of
     "" -> Nothing
     xs -> Just xs
+
