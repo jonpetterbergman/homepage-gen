@@ -225,11 +225,11 @@ readDir globs dir =
 
 readLocalSites :: FilePath
                -> IO [(Lang,LocalSite)]
-readLocalSites fname =
+readLocalSites dir =
   do
-    globs <- readIgnore fname
-    site  <- readDir globs fname
-    defs  <- readDefaults globs fname
+    globs <- readIgnore dir
+    site  <- readDir globs dir
+    defs  <- readDefaults globs dir
     return $ localizes site defs
 
 writePage :: (Lang,[Lang],Navigation)
