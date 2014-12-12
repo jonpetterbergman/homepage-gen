@@ -27,7 +27,8 @@ import qualified Data.Text.Lazy.IO          as    LTIO
 import           Data.NavTree                    (NavTree(..),
                                                   NavForest)
 import           HomepageGen.Data.Navigation     (Navigation,
-                                                  relativePath)
+                                                  relativePath,
+						  allPages)
 import           HomepageGen.Data.Site           (IntlSite,
                                                   LocalSite,
                                                   localizes,
@@ -232,10 +233,19 @@ readLocalSites dir =
     defs  <- readDefaults globs dir
     return $ localizes site defs
 
-writePage :: (Lang,[Lang],Navigation)
-          -> FilePath
+writePage :: FilePath
           -> Template
+          -> (Lang,[Lang],Navigation)
           -> IO ()
-writePage page@(lang,langs,nav) dir template =
+writePage dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in
   writeFile filename $ renderHtml $ template page  
+
+dMain :: FilePath
+      -> FilePath
+      -> Template
+      -> IO ()
+dMain src dst template =
+  do
+    pages <- fmap allPages $ readLocalSites src
+    mapM_ (writePage dst template) pages
