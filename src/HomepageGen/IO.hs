@@ -6,6 +6,8 @@ import           Control.Monad                   (filterM,
                                                   guard)
 import           Data.Char                       (isSpace)
 import           Data.Default                    (def)
+import           Data.Either			 (rights,
+		 				  lefts)
 import           Data.Function                   (on)
 import           Data.LanguageCodes              (ISO639_1(..))
 import qualified Data.LanguageCodes         as    ISO639_1
@@ -140,11 +142,12 @@ readLeaf fullpath =
           return $ Right $ Node lbl (Right content) []
 
 readNodeName :: FilePath
-            -> IO (Maybe (Lang,String))
+            -> IO (Lang,String)
 readNodeName fname =
   do
     content <- fmap trim $ readFile fname
-    return $ fmap (,content) $ fileLang fname
+    return $ maybe err (,content) $ fileLang fname
+  where err = error $ "nodename-file " ++ fname ++ " not translated."
 
 maybeRun :: (Monad m,Functor m)
          => m Bool
@@ -177,7 +180,7 @@ readIndex :: FilePath
           -> IO (IntlLabel,IntlContent)
 readIndex dir ixfiles =
   do
-    ixpages  <- mapM (readResourceOrPage dir) ixfiles
+    ixpages  <- fmap rights $ mapM (readResourceOrPage dir) ixfiles
     return (Label (takeFileName dir) 
                   (Map.unions $ map (nicename . fst) ixpages),
                    Map.unions $ map snd ixpages)
@@ -209,7 +212,7 @@ joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) .
                         
 readDir :: [Pattern]
         -> FilePath
-        -> IO IntlSite
+        -> IO ([FilePath],IntlSite)
 readDir globs dir =
   do
     (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
@@ -219,23 +222,24 @@ readDir globs dir =
     (dirnames,leafnames) <- partitionM (doesDirectoryExist . combine dir) rest
     dirs                 <- mapM (readDir globs . combine dir) dirnames
     leafs                <- mapM (readResourceOrPage dir) leafnames
-    return $ let forest = dirs ++ (joinLeaves leafs) in
-             case flatten of
-               Nothing -> 
-                 Node k (Right v) forest
-               Just (basename,nodename) ->
-                 case partition (\n -> basename == urlname (key n)) forest of
-                   ([],_) -> error $ "cannot find node: " ++ show basename ++ 
+    return $ ((concatMap fst dirs) ++ (lefts leafs),) $ 
+      let forest = (map snd dirs) ++ (joinLeaves $ rights leafs) in
+      case flatten of
+        Nothing -> 
+          Node k (Right v) forest
+        Just (basename,nodename) ->
+          case partition (\n -> basename == urlname (key n)) forest of
+            ([],_) -> error $ "cannot find node: " ++ show basename ++ 
                                      " in: " ++ show rest
-                   (h:t,xs) -> 
-                     Node (k { nicename = nodename }) (Left h) xs
+            (h:t,xs) -> 
+              Node (k { nicename = nodename }) (Left h) xs
 
 readLocalSites :: FilePath
                -> IO [(Lang,LocalSite)]
 readLocalSites dir =
   do
     globs <- readIgnore dir
-    site  <- readDir globs dir
+    (False,site)  <- readDir globs dir
     defs  <- readDefaults globs dir
     return $ localizes site defs
 
