@@ -57,18 +57,18 @@ import           Text.Pandoc                     (readMarkdown)
 import Debug.Trace
 
 splitLang :: FilePath
-          -> (FilePath,Lang)
+          -> Maybe (FilePath,Lang)
 splitLang fname = go $ splitExtension fname
-  where go (base,['.',x,y]) = maybe (fname,ISO639_1.EN) (base,) $ ISO639_1.fromChars x y 
-        go _                = (fname,ISO639_1.EN)
+  where go (base,['.',x,y]) = fmap (base,) $ ISO639_1.fromChars x y 
+        go _                = Nothing
 
 fileLang :: FilePath 
-         -> Lang
-fileLang = snd . splitLang
+         -> Maybe Lang
+fileLang = (fmap snd) . splitLang
 
 dropLangExtension :: FilePath 
                   -> FilePath
-dropLangExtension = fst . splitLang
+dropLangExtension fname = maybe fname fst $ splitLang fname
     
 dropMdExtension :: FilePath
                 -> FilePath
@@ -76,17 +76,19 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
                   reverse $ drop 3 $ reverse filename
                          | otherwise = filename
 
-readPage :: FilePath
+readResourceOrPage :: FilePath
          -> FilePath
-         -> IO (IntlLabel,IntlContent)
-readPage dir fname =
-  let (basename,lang) = splitLang fname in
-  do
-    contents <- fmap (readMarkdown def) $ readFile $ combine dir fname
-    return $ (Label (dropMdExtension basename) 
-                    (maybe Map.empty (Map.singleton lang) $ 
-                           pageTitle contents), 
-                    Map.singleton lang contents)
+         -> IO (Either FilePath (IntlLabel,IntlContent))
+readResourceOrPage dir fname =
+  case splitLang fname of
+    Nothing              -> return $ Left $ combine dir fname
+    Just (basename,lang) -> 
+      do
+        contents <- fmap (readMarkdown def) $ readFile $ combine dir fname
+        return $ Right $ (Label (dropMdExtension basename) 
+                                (maybe Map.empty (Map.singleton lang) $ 
+                                 pageTitle contents), 
+                                Map.singleton lang contents)
 
 readIgnore :: FilePath
            -> IO [Pattern]
@@ -98,8 +100,9 @@ readDefault :: FilePath
 readDefault fname =
   do
     contents <- fmap (readMarkdown def) $ readFile fname
-    return (fileLang fname,maybe err id $ pageTitle contents,contents)
+    return (maybe lerr id $ fileLang fname,maybe err id $ pageTitle contents,contents)
   where err = error $ "default file: " ++ show fname ++ " doesn't have a title" 
+  	lerr = error $ "default file: " ++ show fname ++ " is not translated"
 
 filterDirectoryContents :: (FilePath -> Bool)
                         -> FilePath
@@ -126,19 +129,22 @@ valid globs xs = not $ "default.md" `isPrefixOf` xs ||
                        (or $ map (flip match $ xs) globs)
 
 readLeaf :: FilePath
-         -> IO IntlSite
+         -> IO (Either FilePath IntlSite)
 readLeaf fullpath = 
   let (dir,base) = splitFileName fullpath in
     do
-      (lbl,content) <- readPage dir base
-      return $ Node lbl (Right content) []
+      mpage <- readResourceOrPage dir base
+      case mpage of
+      	Left  path          -> return $ Left path
+        Right (lbl,content) ->
+          return $ Right $ Node lbl (Right content) []
 
 readNodeName :: FilePath
-            -> IO (Lang,String)
+            -> IO (Maybe (Lang,String))
 readNodeName fname =
   do
     content <- fmap trim $ readFile fname
-    return (fileLang fname,content)
+    return $ fmap (,content) $ fileLang fname
 
 maybeRun :: (Monad m,Functor m)
          => m Bool
@@ -171,7 +177,7 @@ readIndex :: FilePath
           -> IO (IntlLabel,IntlContent)
 readIndex dir ixfiles =
   do
-    ixpages  <- mapM (readPage dir) ixfiles
+    ixpages  <- mapM (readResourceOrPage dir) ixfiles
     return (Label (takeFileName dir) 
                   (Map.unions $ map (nicename . fst) ixpages),
                    Map.unions $ map snd ixpages)
@@ -212,7 +218,7 @@ readDir globs dir =
     flatten              <- readFlatten globs dir
     (dirnames,leafnames) <- partitionM (doesDirectoryExist . combine dir) rest
     dirs                 <- mapM (readDir globs . combine dir) dirnames
-    leafs                <- mapM (readPage dir) leafnames
+    leafs                <- mapM (readResourceOrPage dir) leafnames
     return $ let forest = dirs ++ (joinLeaves leafs) in
              case flatten of
                Nothing -> 
