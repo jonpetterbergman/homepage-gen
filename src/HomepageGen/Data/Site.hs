@@ -18,10 +18,7 @@ import qualified Data.Traversable  as  Tr
 import           Data.NavTree         (NavTree(..),
                                        NavForest,
                                        mapWithKeys)
-import           Text.Pandoc          (Pandoc(..),
-                                       Inline,
-                                       docTitle)
-import           Text.Pandoc.Shared   (stringify)
+import           Text.Blaze.Html      (Html)
 
 type Lang = ISO639_1                     
 
@@ -34,11 +31,11 @@ data Label a =
 
 type IntlLabel = Label (Map Lang String)
 
-type IntlContent = Map Lang Pandoc
+type IntlContent = Map Lang Html
 
 type LocalLabel = Label String
 
-type LocalContent = Pandoc
+type LocalContent = Html
 
 type IntlSite = NavTree IntlLabel IntlContent
 
@@ -77,14 +74,4 @@ localizes :: IntlSite
 localizes site = map go
   where go tr@(lang,_,_) = (lang,localize site tr)
 
-pandocTitle :: Pandoc
-            -> [Inline]
-pandocTitle (Pandoc meta _) = docTitle meta
-
-pageTitle :: Pandoc
-          -> Maybe String
-pageTitle doc = 
-  case stringify $ pandocTitle doc of
-    "" -> Nothing
-    xs -> Just xs
 

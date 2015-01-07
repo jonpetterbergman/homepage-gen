@@ -38,8 +38,7 @@ import           HomepageGen.Data.Site           (IntlSite,
                                                   IntlContent,
                                                   Label(..),
                                                   LocalContent(..),
-                                                  Lang,
-                                                  pageTitle)
+                                                  Lang)
 import           HomepageGen.Html.Template       (Template)
 import           System.Directory                (getDirectoryContents,
                                                   doesDirectoryExist,
@@ -53,10 +52,12 @@ import           System.FilePath                 (combine,
 import           System.FilePath.Glob            (Pattern,
                                                   compile,
                                                   match)
+import           Text.Blaze.Html                 (Html)
 import           Text.Blaze.Html.Renderer.Pretty (renderHtml)
-import           Text.Pandoc                     (readMarkdown)
 
 import Debug.Trace
+
+type FileReader = (FilePath -> IO (Maybe String,Html))
 
 splitLang :: FilePath
           -> Maybe (FilePath,Lang)
@@ -78,18 +79,18 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
                   reverse $ drop 3 $ reverse filename
                          | otherwise = filename
 
-readResourceOrPage :: FilePath
-         -> FilePath
-         -> IO (Either FilePath (IntlLabel,IntlContent))
-readResourceOrPage dir fname =
+readResourceOrPage :: FileReader
+                   -> FilePath
+                   -> FilePath
+                   -> IO (Either FilePath (IntlLabel,IntlContent))
+readResourceOrPage readFun dir fname =
   case splitLang fname of
     Nothing              -> return $ Left $ combine dir fname
     Just (basename,lang) -> 
       do
-        contents <- fmap (readMarkdown def) $ readFile $ combine dir fname
+        (mtitle,contents) <- readFun $ combine dir fname
         return $ Right $ (Label (dropMdExtension basename) 
-                                (maybe Map.empty (Map.singleton lang) $ 
-                                 pageTitle contents), 
+                                (maybe Map.empty (Map.singleton lang) mtitle), 
                                 Map.singleton lang contents)
 
 readIgnore :: FilePath
@@ -97,12 +98,13 @@ readIgnore :: FilePath
 readIgnore dir = 
   fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
 
-readDefault :: FilePath
+readDefault :: FileReader
+            -> FilePath
             -> IO (Lang,String,LocalContent)
-readDefault fname =
+readDefault readFun fname =
   do
-    contents <- fmap (readMarkdown def) $ readFile fname
-    return (maybe lerr id $ fileLang fname,maybe err id $ pageTitle contents,contents)
+    (mtitle,contents) <- readFun fname
+    return (maybe lerr id $ fileLang fname,maybe err id mtitle,contents)
   where err = error $ "default file: " ++ show fname ++ " doesn't have a title" 
   	lerr = error $ "default file: " ++ show fname ++ " is not translated"
 
@@ -111,15 +113,16 @@ filterDirectoryContents :: (FilePath -> Bool)
                         -> IO [FilePath]
 filterDirectoryContents p = fmap (filter p) . getDirectoryContents
 
-readDefaults :: [Pattern]
+readDefaults :: FileReader 
+             -> [Pattern]
              -> FilePath
              -> IO [(Lang,String,LocalContent)]
-readDefaults globs dir = 
-  let isDefault fname = "default.md" `isPrefixOf` fname &&
+readDefaults readFun globs dir = 
+  let isDefault fname = "default" `isPrefixOf` fname &&
                         not (or $ map (flip match $ fname) globs) in
   do
     dfiles <- filterDirectoryContents isDefault dir
-    mapM readDefault $ map (combine dir) dfiles
+    mapM (readDefault readFun) $ map (combine dir) dfiles
 
 valid :: [Pattern]
       -> FilePath
@@ -130,12 +133,13 @@ valid globs xs = not $ "default.md" `isPrefixOf` xs ||
                        "flatten"    ==           xs ||
                        (or $ map (flip match $ xs) globs)
 
-readLeaf :: FilePath
+readLeaf :: FileReader 
+         -> FilePath
          -> IO (Either FilePath IntlSite)
-readLeaf fullpath = 
+readLeaf readFun fullpath = 
   let (dir,base) = splitFileName fullpath in
     do
-      mpage <- readResourceOrPage dir base
+      mpage <- readResourceOrPage readFun dir base
       case mpage of
       	Left  path          -> return $ Left path
         Right (lbl,content) ->
@@ -175,12 +179,13 @@ readFlatten globs dir =
     nodename          <- mapM readNodeName $ map (combine dir) nodenamefiles
     return (baseName,Map.fromList nodename)
 
-readIndex :: FilePath
+readIndex :: FileReader
+          -> FilePath
           -> [FilePath]
           -> IO (IntlLabel,IntlContent)
-readIndex dir ixfiles =
+readIndex readFun dir ixfiles =
   do
-    ixpages  <- fmap rights $ mapM (readResourceOrPage dir) ixfiles
+    ixpages  <- fmap rights $ mapM (readResourceOrPage readFun dir) ixfiles
     return (Label (takeFileName dir) 
                   (Map.unions $ map (nicename . fst) ixpages),
                    Map.unions $ map snd ixpages)
@@ -210,18 +215,19 @@ joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) .
                                          (Map.unions $ map (nicename . fst) xs))
                                   (Right $ Map.unions $ map snd xs) []
                         
-readDir :: [Pattern]
+readDir :: FileReader
+        -> [Pattern]
         -> FilePath
         -> IO ([FilePath],IntlSite)
-readDir globs dir =
+readDir readFun globs dir =
   do
     (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
                                  filterDirectoryContents (valid globs) dir
-    (k,v)                <- readIndex dir ixfiles
+    (k,v)                <- readIndex readFun dir ixfiles
     flatten              <- readFlatten globs dir
     (dirnames,leafnames) <- partitionM (doesDirectoryExist . combine dir) rest
-    dirs                 <- mapM (readDir globs . combine dir) dirnames
-    leafs                <- mapM (readResourceOrPage dir) leafnames
+    dirs                 <- mapM (readDir readFun globs . combine dir) dirnames
+    leafs                <- mapM (readResourceOrPage readFun dir) leafnames
     return $ ((concatMap fst dirs) ++ (lefts leafs),) $ 
       let forest = (map snd dirs) ++ (joinLeaves $ rights leafs) in
       case flatten of
@@ -234,14 +240,15 @@ readDir globs dir =
             (h:t,xs) -> 
               Node (k { nicename = nodename }) (Left h) xs
 
-readLocalSites :: FilePath
-               -> IO [(Lang,LocalSite)]
-readLocalSites dir =
+readLocalSites :: FileReader
+               -> FilePath
+               -> IO ([FilePath],[(Lang,LocalSite)])
+readLocalSites readFun dir =
   do
     globs <- readIgnore dir
-    (False,site)  <- readDir globs dir
-    defs  <- readDefaults globs dir
-    return $ localizes site defs
+    (resources,site)  <- readDir readFun globs dir
+    defs  <- readDefaults readFun globs dir
+    return $ (resources,localizes site defs)
 
 writePage :: FilePath
           -> Template
@@ -251,11 +258,12 @@ writePage dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in
   writeFile filename $ renderHtml $ template page  
 
-dMain :: FilePath
+dMain :: FileReader
+      -> FilePath
       -> FilePath
       -> Template
       -> IO ()
-dMain src dst template =
+dMain readFun src dst template =
   do
-    pages <- fmap allPages $ readLocalSites src
+    pages <- fmap (allPages . snd) $ readLocalSites readFun src
     mapM_ (writePage dst template) pages

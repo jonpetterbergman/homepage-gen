@@ -30,10 +30,6 @@ import           HomepageGen.Data.Site  (Label(..),
                                          LocalContent,
                                          LocalSite)
 import           System.FilePath        (joinPath)
-import           Text.Pandoc.Definition (docTitle,
-                                         Pandoc(..),
-                                         Inline(..))
-import           Text.Pandoc.Shared     (stringify)
 
 type Navigation = NavZip LocalLabel LocalContent
 
