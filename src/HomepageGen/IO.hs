@@ -42,13 +42,16 @@ import           HomepageGen.Data.Site           (IntlSite,
 import           HomepageGen.Html.Template       (Template)
 import           System.Directory                (getDirectoryContents,
                                                   doesDirectoryExist,
-                                                  doesFileExist)
+                                                  doesFileExist,
+                                                  copyFile)
 import           System.FilePath                 (combine,
                                                   takeExtension,
                                                   takeFileName,
                                                   splitExtension,
                                                   dropExtension,
-                                                  splitFileName)
+                                                  splitFileName,
+                                                  splitPath,
+                                                  joinPath)
 import           System.FilePath.Glob            (Pattern,
                                                   compile,
                                                   match)
@@ -258,6 +261,21 @@ writePage dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in
   writeFile filename $ renderHtml $ template page  
 
+copyResource :: FilePath
+             -> FilePath
+             -> FilePath
+             -> IO ()
+copyResource src dst dir = 
+  let src' = splitPath src
+      dst' = splitPath dst
+      dir' = splitPath dir
+      fulldst = if src' `isPrefixOf` dir' then 
+                   joinPath $ dst' ++ (drop (length src') dir')
+                else 
+                   error $ show src ++ " is not a prefix of " ++ show dir in
+  copyFile dir fulldst
+      
+
 dMain :: FileReader
       -> FilePath
       -> FilePath
@@ -265,5 +283,6 @@ dMain :: FileReader
       -> IO ()
 dMain readFun src dst template =
   do
-    pages <- fmap (allPages . snd) $ readLocalSites readFun src
-    mapM_ (writePage dst template) pages
+    (resources,pages) <- readLocalSites readFun src
+    mapM_ (writePage dst template) $ allPages pages
+    mapM_ (copyResource src dst) resources
