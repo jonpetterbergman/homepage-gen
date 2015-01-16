@@ -43,7 +43,8 @@ import           HomepageGen.Html.Template       (Template)
 import           System.Directory                (getDirectoryContents,
                                                   doesDirectoryExist,
                                                   doesFileExist,
-                                                  copyFile)
+                                                  copyFile,
+                                                  createDirectoryIfMissing)
 import           System.FilePath                 (combine,
                                                   takeExtension,
                                                   takeFileName,
@@ -51,7 +52,8 @@ import           System.FilePath                 (combine,
                                                   dropExtension,
                                                   splitFileName,
                                                   splitPath,
-                                                  joinPath)
+                                                  joinPath,
+                                                  takeDirectory)
 import           System.FilePath.Glob            (Pattern,
                                                   compile,
                                                   match)
@@ -259,7 +261,9 @@ writePage :: FilePath
           -> IO ()
 writePage dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in
-  writeFile filename $ renderHtml $ template page  
+  do
+    createDirectoryIfMissing True $ takeDirectory filename
+    writeFile filename $ renderHtml $ template page  
 
 copyResource :: FilePath
              -> FilePath
