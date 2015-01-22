@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections #-}
-module HomepageGen.Data.Navigation where
+module NavGen.Data.Navigation where
 
 import           Data.Char              (toLower)
 import           Data.List              (unfoldr,
@@ -24,7 +24,7 @@ import           Data.NavZip            (NavZip(..),
                                          ancestors,
                                          lefts,
                                          rights)
-import           HomepageGen.Data.Site  (Label(..),
+import           NavGen.Data.Site       (Label(..),
                                          Lang,
                                          LocalLabel,
                                          LocalContent,

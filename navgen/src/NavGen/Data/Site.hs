@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections,
              TypeSynonymInstances,
              FlexibleInstances #-}
-module HomepageGen.Data.Site where
+module NavGen.Data.Site where
 
 import           Control.Monad        (join)
 import           Data.Function        (on)

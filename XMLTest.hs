@@ -1,4 +1,4 @@
-module Test where
+module XMLTest where
 
 import           Text.XML.Light.Input
 import           Text.XML.Light.Blaze
@@ -18,4 +18,4 @@ teststr = maybe (putStrLn "- Nothing -") putStrLn test
 testResources filename =
   do
     inf <- LBS.readFile filename
-    maybe (putStrLn "- Nothing -") () $ findResource $ parseXMLDoc inf 
+    maybe (putStrLn "- Nothing -") (mapM_ putStrLn) $ fmap referencedResources $ parseXMLDoc inf 

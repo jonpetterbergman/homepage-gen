@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections #-}
-module HomepageGen.IO where
+module NavGen.IO where
 
 import           Control.Monad                   (filterM,
                                                   foldM,
@@ -28,10 +28,10 @@ import qualified Data.Text.Lazy             as    LT
 import qualified Data.Text.Lazy.IO          as    LTIO
 import           Data.NavTree                    (NavTree(..),
                                                   NavForest)
-import           HomepageGen.Data.Navigation     (Navigation,
+import           NavGen.Data.Navigation          (Navigation,
                                                   relativePath,
 						  allPages)
-import           HomepageGen.Data.Site           (IntlSite,
+import           NavGen.Data.Site                (IntlSite,
                                                   LocalSite,
                                                   localizes,
                                                   IntlLabel,
@@ -39,7 +39,7 @@ import           HomepageGen.Data.Site           (IntlSite,
                                                   Label(..),
                                                   LocalContent(..),
                                                   Lang)
-import           HomepageGen.Html.Template       (Template)
+import           NavGen.Html.Template            (Template)
 import           System.Directory                (getDirectoryContents,
                                                   doesDirectoryExist,
                                                   doesFileExist,
