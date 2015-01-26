@@ -18,10 +18,8 @@ cabal-version:       >=1.10
 library
   exposed-modules:   Data.NavTree, 
                      Data.NavZip, 
-                     NavGen.IO, 
                      NavGen.Data.Site, 
-                     NavGen.Data.Navigation, 
-                     NavGen.Html.Template
+                     NavGen.Data.Navigation
   -- other-modules:       
   other-extensions:  TupleSections, 
                      TypeSynonymInstances, 
@@ -35,7 +33,6 @@ library
                      text >=1.2 && <1.3, 
                      directory >=1.2 && <1.3, 
                      filepath >=1.3 && <1.4, 
-                     Glob >=0.7 && <0.8, 
-                     blaze-html >=0.7 && <0.8
+                     Glob >=0.7 && <0.8
   hs-source-dirs:    src
   default-language:  Haskell2010

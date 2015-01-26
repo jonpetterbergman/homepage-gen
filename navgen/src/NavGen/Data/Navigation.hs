@@ -27,18 +27,17 @@ import           Data.NavZip            (NavZip(..),
 import           NavGen.Data.Site       (Label(..),
                                          Lang,
                                          LocalLabel,
-                                         LocalContent,
                                          LocalSite)
 import           System.FilePath        (joinPath)
 
-type Navigation = NavZip LocalLabel LocalContent
+type Navigation a = NavZip LocalLabel a
 
-fromSite :: LocalSite 
-         -> NavTree LocalLabel Navigation
+fromSite :: LocalSite a
+         -> NavTree LocalLabel (Navigation a)
 fromSite = everything . fromTree
 
 relativePath :: Lang
-             -> Navigation
+             -> Navigation a
              -> FilePath
 relativePath lang nav = 
   joinPath $ (map pathElement $ reverse $ ancestors nav) ++
@@ -49,18 +48,18 @@ relativePath lang nav =
                        | otherwise                   = [pathElement nav,"index.html" ++ langExt]
 
 
-pageTitle :: Navigation
+pageTitle :: Navigation a
           -> String
 pageTitle = nicename . key . here . level
 
 logicalPath :: Lang
-            -> Navigation
+            -> Navigation a
             -> ([(String,FilePath)],String)
 logicalPath lang nav =
   (map (\n -> (pageTitle n,relativePath lang n)) $ (reverse $ ancestors nav),pageTitle nav)
 
 menu :: Lang
-     -> Navigation
+     -> Navigation a
      -> Forest (String,Maybe String)
 menu lang nav = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
                                    [Tree.Node (pageTitle nav,Nothing) []] ++
@@ -72,8 +71,8 @@ menu lang nav = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
                                                           [Tree.Node (mkEnt nav) prevForest] ++
                                                           (map mkNode $ rights nav)
                
-allPages :: [(Lang,LocalSite)]
-         -> [(Lang,[Lang],Navigation)]
+allPages :: [(Lang,LocalSite a)]
+         -> [(Lang,[Lang],Navigation a)]
 allPages sites = 
   let langs    = map fst sites 
       navTrees = map (\(lang,site) -> (lang,fromSite site)) sites in

@@ -37,7 +37,6 @@ import           NavGen.Data.Site                (IntlSite,
                                                   IntlLabel,
                                                   IntlContent,
                                                   Label(..),
-                                                  LocalContent(..),
                                                   Lang)
 import           NavGen.Html.Template            (Template)
 import           System.Directory                (getDirectoryContents,
@@ -87,7 +86,7 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
 readResourceOrPage :: FileReader
                    -> FilePath
                    -> FilePath
-                   -> IO (Either FilePath (IntlLabel,IntlContent))
+                   -> IO (Either FilePath (IntlLabel,IntlContent Html))
 readResourceOrPage readFun dir fname =
   case splitLang fname of
     Nothing              -> return $ Left $ combine dir fname
@@ -105,7 +104,7 @@ readIgnore dir =
 
 readDefault :: FileReader
             -> FilePath
-            -> IO (Lang,String,LocalContent)
+            -> IO (Lang,String,Html)
 readDefault readFun fname =
   do
     (mtitle,contents) <- readFun fname
@@ -121,7 +120,7 @@ filterDirectoryContents p = fmap (filter p) . getDirectoryContents
 readDefaults :: FileReader 
              -> [Pattern]
              -> FilePath
-             -> IO [(Lang,String,LocalContent)]
+             -> IO [(Lang,String,Html)]
 readDefaults readFun globs dir = 
   let isDefault fname = "default" `isPrefixOf` fname &&
                         not (or $ map (flip match $ fname) globs) in
@@ -140,7 +139,7 @@ valid globs xs = not $ "default.md" `isPrefixOf` xs ||
 
 readLeaf :: FileReader 
          -> FilePath
-         -> IO (Either FilePath IntlSite)
+         -> IO (Either FilePath (IntlSite Html))
 readLeaf readFun fullpath = 
   let (dir,base) = splitFileName fullpath in
     do
@@ -187,7 +186,7 @@ readFlatten globs dir =
 readIndex :: FileReader
           -> FilePath
           -> [FilePath]
-          -> IO (IntlLabel,IntlContent)
+          -> IO (IntlLabel,IntlContent Html)
 readIndex readFun dir ixfiles =
   do
     ixpages  <- fmap rights $ mapM (readResourceOrPage readFun dir) ixfiles
@@ -211,8 +210,8 @@ select p (ts,fs) x =
     r <- p x
     return $ if r then (x:ts,fs) else (ts,x:fs)
 
-joinLeaves :: [(IntlLabel,IntlContent)]
-           -> NavForest IntlLabel IntlContent
+joinLeaves :: [(IntlLabel,IntlContent Html)]
+           -> NavForest IntlLabel (IntlContent Html)
 joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) . 
                            sortBy (compare `on` (urlname . fst)) 
   where go [] = Nothing
@@ -223,7 +222,7 @@ joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) .
 readDir :: FileReader
         -> [Pattern]
         -> FilePath
-        -> IO ([FilePath],IntlSite)
+        -> IO ([FilePath],IntlSite Html)
 readDir readFun globs dir =
   do
     (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
@@ -247,7 +246,7 @@ readDir readFun globs dir =
 
 readLocalSites :: FileReader
                -> FilePath
-               -> IO ([FilePath],[(Lang,LocalSite)])
+               -> IO ([FilePath],[(Lang,LocalSite Html)])
 readLocalSites readFun dir =
   do
     globs <- readIgnore dir
@@ -257,7 +256,7 @@ readLocalSites readFun dir =
 
 writePage :: FilePath
           -> Template
-          -> (Lang,[Lang],Navigation)
+          -> (Lang,[Lang],Navigation Html)
           -> IO ()
 writePage dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in

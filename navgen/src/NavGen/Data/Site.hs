@@ -18,7 +18,6 @@ import qualified Data.Traversable  as  Tr
 import           Data.NavTree         (NavTree(..),
                                        NavForest,
                                        mapWithKeys)
-import           Text.Blaze.Html      (Html)
 
 type Lang = ISO639_1                     
 
@@ -31,15 +30,13 @@ data Label a =
 
 type IntlLabel = Label (Map Lang String)
 
-type IntlContent = Map Lang Html
+type IntlContent a = Map Lang a
 
 type LocalLabel = Label String
 
-type LocalContent = Html
+type IntlSite a = NavTree IntlLabel (IntlContent a)
 
-type IntlSite = NavTree IntlLabel IntlContent
-
-type LocalSite = NavTree LocalLabel LocalContent
+type LocalSite a = NavTree LocalLabel a
 
 splitLeaves :: NavForest k a
             -> ([(k,a)],NavForest k a)
@@ -48,29 +45,16 @@ splitLeaves = foldr go ([],[])
         go (Node k _         []) (leaves,trees) = (leaves,trees)
         go tree                  (leaves,trees) = (leaves,tree:trees)
 
---appendPages :: Bool
---appendPages = False
-
---joinPages :: Forest IntlPage
---          -> Forest IntlPage
---joinPages pgs =
---  let (leaves,trees) = splitLeaves pgs in
---  (map (flip Node $ []) $ Map.elems $ 
---                          foldr (\l -> Map.insertWith appendPages 
---                                                      (urlname l) l) 
---                                mempty leaves)  
---  ++ trees
-
-localize :: IntlSite
-         -> (Lang,String,LocalContent)
-         -> LocalSite
+localize :: IntlSite a
+         -> (Lang,String,a)
+         -> LocalSite a
 localize site (lang,defaultNiceName,defaultPage) = mapWithKeys localK localC site
   where localK (Label url mp) = Label url $ fromMaybe defaultNiceName $ Map.lookup lang mp
         localC mp = fromMaybe defaultPage $ Map.lookup lang mp 
 
-localizes :: IntlSite 
-          -> [(Lang,String,LocalContent)]
-          -> [(Lang,LocalSite)]
+localizes :: IntlSite a
+          -> [(Lang,String,a)]
+          -> [(Lang,LocalSite a)]
 localizes site = map go
   where go tr@(lang,_,_) = (lang,localize site tr)
 
