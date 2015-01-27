@@ -38,7 +38,6 @@ import           NavGen.Data.Site                (IntlSite,
                                                   IntlContent,
                                                   Label(..),
                                                   Lang)
-import           NavGen.Html.Template            (Template)
 import           System.Directory                (getDirectoryContents,
                                                   doesDirectoryExist,
                                                   doesFileExist,
@@ -56,12 +55,15 @@ import           System.FilePath                 (combine,
 import           System.FilePath.Glob            (Pattern,
                                                   compile,
                                                   match)
-import           Text.Blaze.Html                 (Html)
-import           Text.Blaze.Html.Renderer.Pretty (renderHtml)
 
 import Debug.Trace
 
-type FileReader = (FilePath -> IO (Maybe String,Html))
+type Template a b = (Lang,[Lang],Navigation a)
+                  -> b
+
+type FileReader a = (FilePath -> IO (Maybe String,a))
+
+type FileWriter a = (FilePath -> a -> IO ())
 
 splitLang :: FilePath
           -> Maybe (FilePath,Lang)
@@ -83,10 +85,10 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
                   reverse $ drop 3 $ reverse filename
                          | otherwise = filename
 
-readResourceOrPage :: FileReader
+readResourceOrPage :: FileReader a
                    -> FilePath
                    -> FilePath
-                   -> IO (Either FilePath (IntlLabel,IntlContent Html))
+                   -> IO (Either FilePath (IntlLabel,IntlContent a))
 readResourceOrPage readFun dir fname =
   case splitLang fname of
     Nothing              -> return $ Left $ combine dir fname
@@ -102,9 +104,9 @@ readIgnore :: FilePath
 readIgnore dir = 
   fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
 
-readDefault :: FileReader
+readDefault :: FileReader a
             -> FilePath
-            -> IO (Lang,String,Html)
+            -> IO (Lang,String,a)
 readDefault readFun fname =
   do
     (mtitle,contents) <- readFun fname
@@ -117,10 +119,10 @@ filterDirectoryContents :: (FilePath -> Bool)
                         -> IO [FilePath]
 filterDirectoryContents p = fmap (filter p) . getDirectoryContents
 
-readDefaults :: FileReader 
+readDefaults :: FileReader a
              -> [Pattern]
              -> FilePath
-             -> IO [(Lang,String,Html)]
+             -> IO [(Lang,String,a)]
 readDefaults readFun globs dir = 
   let isDefault fname = "default" `isPrefixOf` fname &&
                         not (or $ map (flip match $ fname) globs) in
@@ -137,9 +139,9 @@ valid globs xs = not $ "default.md" `isPrefixOf` xs ||
                        "flatten"    ==           xs ||
                        (or $ map (flip match $ xs) globs)
 
-readLeaf :: FileReader 
+readLeaf :: FileReader a
          -> FilePath
-         -> IO (Either FilePath (IntlSite Html))
+         -> IO (Either FilePath (IntlSite a))
 readLeaf readFun fullpath = 
   let (dir,base) = splitFileName fullpath in
     do
@@ -183,10 +185,10 @@ readFlatten globs dir =
     nodename          <- mapM readNodeName $ map (combine dir) nodenamefiles
     return (baseName,Map.fromList nodename)
 
-readIndex :: FileReader
+readIndex :: FileReader a
           -> FilePath
           -> [FilePath]
-          -> IO (IntlLabel,IntlContent Html)
+          -> IO (IntlLabel,IntlContent a)
 readIndex readFun dir ixfiles =
   do
     ixpages  <- fmap rights $ mapM (readResourceOrPage readFun dir) ixfiles
@@ -210,8 +212,8 @@ select p (ts,fs) x =
     r <- p x
     return $ if r then (x:ts,fs) else (ts,x:fs)
 
-joinLeaves :: [(IntlLabel,IntlContent Html)]
-           -> NavForest IntlLabel (IntlContent Html)
+joinLeaves :: [(IntlLabel,IntlContent a)]
+           -> NavForest IntlLabel (IntlContent a)
 joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) . 
                            sortBy (compare `on` (urlname . fst)) 
   where go [] = Nothing
@@ -219,10 +221,10 @@ joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) .
                                          (Map.unions $ map (nicename . fst) xs))
                                   (Right $ Map.unions $ map snd xs) []
                         
-readDir :: FileReader
+readDir :: FileReader a
         -> [Pattern]
         -> FilePath
-        -> IO ([FilePath],IntlSite Html)
+        -> IO ([FilePath],IntlSite a)
 readDir readFun globs dir =
   do
     (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
@@ -244,9 +246,9 @@ readDir readFun globs dir =
             (h:t,xs) -> 
               Node (k { nicename = nodename }) (Left h) xs
 
-readLocalSites :: FileReader
+readLocalSites :: FileReader a
                -> FilePath
-               -> IO ([FilePath],[(Lang,LocalSite Html)])
+               -> IO ([FilePath],[(Lang,LocalSite a)])
 readLocalSites readFun dir =
   do
     globs <- readIgnore dir
@@ -254,15 +256,16 @@ readLocalSites readFun dir =
     defs  <- readDefaults readFun globs dir
     return $ (resources,localizes site defs)
 
-writePage :: FilePath
-          -> Template
-          -> (Lang,[Lang],Navigation Html)
+writePage :: FileWriter b
+          -> FilePath
+          -> Template a b
+          -> (Lang,[Lang],Navigation a)
           -> IO ()
-writePage dir template page@(lang,langs,nav) =
+writePage writer dir template page@(lang,langs,nav) =
   let filename = combine dir $ relativePath lang nav in
   do
     createDirectoryIfMissing True $ takeDirectory filename
-    writeFile filename $ renderHtml $ template page  
+    writer filename $ template page  
 
 copyResource :: FilePath
              -> FilePath
@@ -279,13 +282,13 @@ copyResource src dst dir =
   copyFile dir fulldst
       
 
-dMain :: FileReader
-      -> FilePath
-      -> FilePath
-      -> Template
-      -> IO ()
-dMain readFun src dst template =
-  do
-    (resources,pages) <- readLocalSites readFun src
-    mapM_ (writePage dst template) $ allPages pages
-    mapM_ (copyResource src dst) resources
+--dMain :: FileReader a
+--      -> FilePath
+--      -> FilePath
+--      -> Template
+--      -> IO ()
+--dMain readFun src dst template =
+--  do
+--    (resources,pages) <- readLocalSites readFun src
+--    mapM_ (writePage dst template) $ allPages pages
+--    mapM_ (copyResource src dst) resources
