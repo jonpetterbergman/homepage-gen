@@ -16,8 +16,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:   Text.XML.Light.Resource, 
-                     Text.XML.Light.Blaze,
+  exposed-modules:   NavGen.XML.Resource, 
+                     NavGen.XML.Blaze,
                      NavGen.XML.XMLReader
   -- other-modules:       
   other-extensions:  OverloadedStrings

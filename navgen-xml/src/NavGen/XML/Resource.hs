@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Text.XML.Light.Resource where
+module NavGen.XML.Resource where
 
 import Text.XML.Light.Types  (Element,
                               QName(..))

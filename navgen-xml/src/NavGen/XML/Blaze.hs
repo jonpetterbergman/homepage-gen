@@ -1,4 +1,4 @@
-module Text.XML.Light.Blaze where
+module NavGen.XML.Blaze where
 
 import Text.XML.Light.Types  (Element(..),
                               Content(..),
