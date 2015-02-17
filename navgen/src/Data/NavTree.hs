@@ -15,6 +15,13 @@ data NavTree a b =
        }
        deriving Show
 
+followValue :: NavTree a b
+            -> b
+followValue n =
+  case value n of
+    Left n' -> followValue n
+    Right x -> x
+
 type NavForest a b = [NavTree a b]
 
 subForest :: NavTree a b

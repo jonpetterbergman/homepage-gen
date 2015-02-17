@@ -8,6 +8,7 @@ import           Text.XML.Light.Types    (Element(..),
 import           Text.XML.Light.Proc     (elChildren,
                                           strContent)      
 import           NavGen.XML.Blaze        (elementToBlaze)
+import           NavGen.XML.Resource     (referencedResources)
 import           Text.Blaze.Html         (Html)
 import           Data.Monoid             (mconcat)
 
@@ -17,7 +18,7 @@ xmlFileReader filename =
     mDoc <- fmap parseXMLDoc $ LB.readFile filename 
     case mDoc of
       Nothing -> error "parseXMLDoc returned Nothing"
-      Just doc -> return (Just $ findTitle doc,([],
+      Just doc -> return (Just $ findTitle doc,(referencedResources doc,
                           mconcat $ map elementToBlaze $ elChildren $ findContents doc))
 
 findTitle :: Element 
