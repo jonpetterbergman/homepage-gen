@@ -1,2 +1,0 @@
-Hemsida
-Petter Bergmans hemsida
