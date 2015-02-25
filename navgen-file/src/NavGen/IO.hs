@@ -137,10 +137,10 @@ readDefaults readFun globs dir =
 valid :: [Pattern]
       -> FilePath
       -> Bool
-valid globs xs = not $ "default.md" `isPrefixOf` xs ||
-                       "."          `isPrefixOf` xs ||
-                       "dirname"    `isPrefixOf` xs ||
-                       "flatten"    ==           xs ||
+valid globs xs = not $ "default" `isPrefixOf` xs ||
+                       "."       `isPrefixOf` xs ||
+                       "dirname" `isPrefixOf` xs ||
+                       "flatten" ==           xs ||
                        (or $ map (flip match $ xs) globs)
 
 readLeaf :: FileReader a
