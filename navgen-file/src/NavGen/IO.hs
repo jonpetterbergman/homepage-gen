@@ -85,6 +85,10 @@ dropMdExtension filename | ".md" `isSuffixOf` filename =
                   reverse $ drop 3 $ reverse filename
                          | otherwise = filename
 
+onlyBase :: FilePath
+         -> FilePath
+onlyBase = takeWhile (/= '.')
+
 readResourceOrPage :: FileReader a
                    -> FilePath
                    -> FilePath
@@ -95,7 +99,7 @@ readResourceOrPage readFun dir fname =
     Just (basename,lang) -> 
       do
         (mtitle,contents) <- readFun $ combine dir fname
-        return $ Right $ (Label (dropMdExtension basename) 
+        return $ Right $ (Label (onlyBase basename) 
                                 (maybe Map.empty (Map.singleton lang) mtitle), 
                                 Map.singleton lang contents)
 
@@ -275,7 +279,7 @@ copyResource src dst dir =
   let src' = splitPath src
       dst' = splitPath dst
       dir' = splitPath dir
-      fulldst = if src' `isPrefixOf` dir' then 
+      fulldst = if src `isPrefixOf` dir then 
                    joinPath $ dst' ++ (drop (length src') dir')
                 else 
                    error $ show src ++ " is not a prefix of " ++ show dir in
