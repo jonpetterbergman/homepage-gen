@@ -4,7 +4,8 @@ module XMLTest where
 
 import           Data.NavZip                     (Level(..),
                                                   NavZip(..))
-import           Data.NavTree                    (followValue)
+import           Data.NavTree                    (followValue,
+                                                  key)
 import           NavGen.XML.XMLReader            (xmlFileReader)
 import           NavGen.IO                       (readLocalSites,
                                                   writePage,
@@ -12,6 +13,7 @@ import           NavGen.IO                       (readLocalSites,
                                                   Template,
                                                   FileWriter)
 import           NavGen.Data.Navigation          (allPages)
+import           NavGen.Data.Site                (Label(..))
 import qualified Text.Blaze.Html5             as  H
 import qualified Text.Blaze.Html5.Attributes  as  HA
 import           Text.Blaze.Html                 (toHtml,
@@ -24,7 +26,7 @@ blazeWriter filename = writeFile filename . renderHtml
 testTemplate :: Template ([String],Html) Html
 testTemplate (thisLang,otherLangs,nav) =
   H.docTypeHtml $ do
-    H.head $ H.title "kek"
+    H.head $ H.title $ toHtml $ nicename $ key $ here $ level nav
     H.body $ do
       H.h1 "kek"
       H.div $ snd $ followValue $ here $ level nav
