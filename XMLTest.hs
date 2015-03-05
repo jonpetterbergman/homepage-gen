@@ -20,15 +20,20 @@ import           Text.Blaze.Html                 (toHtml,
                                                   Html)
 import           Text.Blaze.Html.Renderer.Pretty (renderHtml)
 
+getTitle = nicename . key . here . level
+
+nicePath = map getTitle . reverse . ancestors
+
 blazeWriter :: FileWriter Html
 blazeWriter filename = writeFile filename . renderHtml
 
 testTemplate :: Template ([String],Html) Html
 testTemplate (thisLang,otherLangs,nav) =
+  let title = nicePath nav in
   H.docTypeHtml $ do
-    H.head $ H.title $ toHtml $ nicename $ key $ here $ level nav
+    H.head $ H.title title
     H.body $ do
-      H.h1 "kek"
+      H.h1 title
       H.div $ snd $ followValue $ here $ level nav
 
 test :: FilePath
