@@ -4,7 +4,9 @@ module XMLTest where
 
 import           Data.NavZip                     (Level(..),
                                                   NavZip(..),
-                                                  ancestors)
+                                                  ancestors,
+                                                  rights,
+                                                  lefts)
 import           Data.NavTree                    (followValue,
                                                   key)
 import           NavGen.XML.XMLReader            (xmlFileReader)
@@ -24,10 +26,16 @@ import           Text.Blaze.Html.Renderer.Pretty (renderHtml)
 import           Data.List                       (intercalate,
                                                   intersperse)
 import           Data.Monoid                     (mconcat)
+import           Data.Tree                       (Tree(..),
+                                                  Forest)
+
+getLabel :: NavZip (Label a) b
+         -> Label a
+getLabel = key . here . level
 
 getTitle :: NavZip (Label a) b
          -> a
-getTitle = nicename . key . here . level
+getTitle = nicename . getLabel
 
 nicePath :: NavZip (Label String) a
          -> String
@@ -36,7 +44,7 @@ nicePath x = intercalate "/" $ (map getTitle $ reverse $ ancestors x) ++ [getTit
 nicePathN :: NavZip (Label String) a
           -> Html
 nicePathN x = mconcat $ intersperse "/" $ (map go $ reverse $ ancestors x) ++ [toHtml $ getTitle x]
-  where go x = H.a ! HA.href (H.toValue $ urlname $ key $ here $ level x) $ toHtml $ getTitle x
+  where go x = H.a ! HA.href (H.toValue $ urlname $ getLabel x) $ toHtml $ getTitle x
 
 blazeWriter :: FileWriter Html
 blazeWriter filename = writeFile filename . renderHtml
@@ -59,5 +67,12 @@ testNicePath src dst =
     mapM_ (writePage blazeWriter dst nicePathTemplate) $ allPages pages
     mapM_ (copyResource src dst) resources 
 
---menu :: NavZip (Label String) a
---     -> Forest (Label String)
+menuForest :: NavZip (Label String) a
+           -> Forest (String,Maybe String)
+menuForest x = 
+  (map (mkNode [] True) $ reverse $ lefts x) ++ 
+  [mkNode [] False x] ++ 
+  (map (mkNode [] True) $ rights x)
+  where mkNode sub live nz = 
+          let lbl = getLabel nz in
+          Node (nicename lbl,if live then Just $ urlname lbl else Nothing) sub
