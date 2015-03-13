@@ -19,8 +19,15 @@ followValue :: NavTree a b
             -> b
 followValue n =
   case value n of
-    Left n' -> followValue n
+    Left n' -> followValue n'
     Right x -> x
+
+followKeys :: NavTree a b
+           -> [a]
+followKeys n =
+  case value n of
+    Left n' -> key n:followKeys n'
+    Right x -> [key n]
 
 type NavForest a b = [NavTree a b]
 
