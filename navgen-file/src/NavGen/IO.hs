@@ -51,7 +51,8 @@ import           System.FilePath                 (combine,
                                                   splitFileName,
                                                   splitPath,
                                                   joinPath,
-                                                  takeDirectory)
+                                                  takeDirectory,
+                                                  dropTrailingPathSeparator)
 import           System.FilePath.Glob            (Pattern,
                                                   compile,
                                                   match)
@@ -196,7 +197,7 @@ readIndex :: FileReader a
 readIndex readFun dir ixfiles =
   do
     ixpages  <- fmap rights $ mapM (readResourceOrPage readFun dir) ixfiles
-    return (Label (takeFileName dir) 
+    return (Label (takeFileName $ dropTrailingPathSeparator dir) 
                   (Map.unions $ map (nicename . fst) ixpages),
                    Map.unions $ map snd ixpages)
 

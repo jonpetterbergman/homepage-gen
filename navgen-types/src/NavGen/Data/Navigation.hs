@@ -19,6 +19,7 @@ import           Data.NavZip            (NavZip(..),
                                          here,
                                          level,
                                          up,   
+                                         isTop,
                                          before,
                                          after,
                                          ancestors,
@@ -44,7 +45,7 @@ relativePath lang nav =
              (mkFilename nav)
   where pathElement                                  = urlname . key . here . level
         langExt                                      = "." ++ (map toLower $ show lang)
-        mkFilename nav | (isLeaf $ here $ level nav) = [(pathElement nav) ++ ".html" ++ langExt]
+        mkFilename nav | (isLeaf $ here $ level nav) && not (isTop nav) = [(pathElement nav) ++ ".html" ++ langExt]
                        | otherwise                   = [pathElement nav,"index.html" ++ langExt]
 
 

@@ -1,6 +1,6 @@
 module Data.NavZip where
 
-import           Data.List        (unfoldr)
+import           Data.List        (unfoldr,null)
 import           Data.NavTree     (NavTree(..),
                                    NavForest,   
                                    drawTree,
@@ -85,6 +85,10 @@ levelAll nav =
 allOnLevel :: NavZip k a
            -> [NavZip k a]
 allOnLevel (NavZip a lev) = map (NavZip a) $ levelAll lev
+
+isTop :: NavZip k a
+      -> Bool
+isTop (NavZip a lev) = null a
 
 everything :: NavZip k a
            -> NavTree k (NavZip k a)
