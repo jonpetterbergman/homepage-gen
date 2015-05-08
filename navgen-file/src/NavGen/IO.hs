@@ -107,7 +107,10 @@ readResourceOrPage readFun dir fname =
 readIgnore :: FilePath
            -> IO [Pattern]
 readIgnore dir = 
-  fmap (map compile . lines) $ readFile $ combine dir ".hpignore"
+  let fname = combine dir ".hpignore" in
+  do
+    ex <- doesFileExist fname
+    if ex then fmap (map compile . lines) $ readFile fname else return []
 
 readDefault :: FileReader a
             -> FilePath
