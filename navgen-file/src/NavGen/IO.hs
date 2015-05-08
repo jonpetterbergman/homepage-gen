@@ -270,7 +270,7 @@ writePage :: FileWriter b
           -> (Lang,[Lang],Navigation a)
           -> IO ()
 writePage writer dir template page@(lang,langs,nav) =
-  let filename = combine dir $ relativePath lang nav in
+  let filename = combine dir $ joinPath $ drop 1 $ splitPath $ relativePath lang nav in
   do
     createDirectoryIfMissing True $ takeDirectory filename
     writer filename $ template page  
