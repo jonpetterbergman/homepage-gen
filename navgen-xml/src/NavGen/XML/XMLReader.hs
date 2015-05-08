@@ -1,6 +1,7 @@
 module NavGen.XML.XMLReader where
 
 import           NavGen.IO               (FileReader)
+import           Data.Text.Lazy.Encoding (decodeUtf8)
 import qualified Data.ByteString.Lazy as  LB
 import           Text.XML.Light.Input    (parseXMLDoc)
 import           Text.XML.Light.Types    (Element(..),
@@ -15,7 +16,7 @@ import           Data.Monoid             (mconcat)
 xmlFileReader :: FileReader ([String],Html)
 xmlFileReader filename =
   do
-    mDoc <- fmap parseXMLDoc $ LB.readFile filename 
+    mDoc <- fmap (parseXMLDoc . decodeUtf8) $ LB.readFile filename 
     case mDoc of
       Nothing -> error "parseXMLDoc returned Nothing"
       Just doc -> return (Just $ findTitle doc,(referencedResources doc,
