@@ -23,7 +23,7 @@ elementToBlaze (Element name attrs content _) =
       blazeAttrs = mconcat $ map attrToBlaze attrs in
   case map contentToBlaze content of
     [] -> customLeaf tag True ! blazeAttrs 
-    xs -> customParent tag $ mconcat xs ! blazeAttrs
+    xs -> (customParent tag $ mconcat xs) ! blazeAttrs
 
 attrToBlaze :: Attr
             -> Attribute
