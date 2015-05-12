@@ -1,10 +1,12 @@
 module Data.NavZip where
 
-import           Data.List        (unfoldr,null)
+import           Data.List        (unfoldr,null,find)
 import           Data.NavTree     (NavTree(..),
                                    NavForest,   
                                    drawTree,
                                    test)
+import           Data.NavPath     (NavPath(..))
+import           Prelude hiding   (lookup)
 
 data Level p k a =
   Level {
@@ -12,7 +14,7 @@ data Level p k a =
         , here   :: p
         , after  :: [NavTree k a]
         } 
-        deriving Show
+        deriving (Show,Eq)
 
 type UpLevel k a = Level (k,Maybe a) k a
 
@@ -23,7 +25,7 @@ data NavZip k a =
            above :: [UpLevel k a]
          , level :: NavLevel k a
          }
-         deriving Show
+         deriving (Show,Eq)
 
 fromTree :: NavTree k a
          -> NavZip k a
@@ -122,6 +124,31 @@ top :: NavZip k a
     -> NavZip k a
 top nav = maybe nav top $ up nav
 
+lookup :: Eq k
+       => NavZip k a
+       -> NavPath k
+       -> Maybe (NavZip k a)
+lookup z (Absolute xs) = lookup (top z) $ Relative 0 xs
+lookup z (Relative 0 []) = Just z
+lookup z (Relative 0 (x:xs)) = 
+  do
+    z' <- find ((== x) . key . here . level) $ children z
+    lookup z' $ Relative 0 xs
+lookup z (Relative n xs) = 
+  do
+    z' <- up z
+    lookup z' $ Relative (n-1) xs
+
+mkPath :: (Eq k,Eq a) 
+       => NavZip k a
+       -> NavZip k a
+       -> Maybe (NavPath k)
+mkPath = go (0,[])
+  where go (n,xs) from to | from == to = Just $ Relative n xs
+                          | otherwise = do from' <- up from
+                                           to'   <- up to
+                                           go (n+1,(key $ here $ level to):xs) from' to'
+
 firstChildOrValue :: NavZip k a
                   -> Either a (NavZip k a)
 firstChildOrValue (NavZip t (Level b (Node key val frst) a)) =
@@ -136,6 +163,10 @@ firstChildOrValue (NavZip t (Level b (Node key val frst) a)) =
 firstChild :: NavZip k a
            -> Maybe (NavZip k a)
 firstChild = either (const Nothing) Just . firstChildOrValue
+
+children :: NavZip k a
+         -> [NavZip k a]
+children = maybe [] allOnLevel . firstChild
 
 followLink :: NavZip k a
            -> NavZip k a

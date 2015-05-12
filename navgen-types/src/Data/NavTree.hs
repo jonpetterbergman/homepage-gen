@@ -13,7 +13,7 @@ data NavTree a b =
        , value      :: Either (NavTree a b) b
        , _subForest :: NavForest a b
        }
-       deriving Show
+       deriving (Show,Eq)
 
 followValue :: NavTree a b
             -> b
