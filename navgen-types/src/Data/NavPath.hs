@@ -10,6 +10,10 @@ data NavPath k =
     Absolute [k]
   | Relative Int [k] deriving Eq
 
+instance Functor NavPath where
+  fmap f (Absolute xs) = Absolute $ map f xs
+  fmap f (Relative n xs) = Relative n $ map f xs
+
 instance Show (NavPath String) where
   show (Absolute xs) = "/" ++ (intercalate "/" xs)
   show (Relative ups xs) = intercalate "/" $ (replicate ups "..") ++ xs
