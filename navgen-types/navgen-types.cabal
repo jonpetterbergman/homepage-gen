@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:   Data.NavTree, 
+                     Data.NavPath,
                      Data.NavZip, 
                      NavGen.Data.Site, 
                      NavGen.Data.Navigation
