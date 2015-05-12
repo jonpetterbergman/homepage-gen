@@ -26,7 +26,7 @@ data Label a =
           urlname  :: String
         , nicename :: a
         }
-        deriving Show
+        deriving (Show,Eq)
 
 type IntlLabel = Label (Map Lang String)
 
