@@ -25,6 +25,7 @@ import           Data.NavZip            (NavZip(..),
                                          ancestors,
                                          lefts,
                                          rights)
+import           Data.NavPath           (NavPath(..))
 import           NavGen.Data.Site       (Label(..),
                                          Lang,
                                          LocalLabel,
@@ -53,11 +54,13 @@ pageTitle :: Navigation a
           -> String
 pageTitle = nicename . key . here . level
 
-logicalPath :: Lang
-            -> Navigation a
-            -> ([(String,FilePath)],String)
-logicalPath lang nav =
-  (map (\n -> (pageTitle n,relativePath lang n)) $ (reverse $ ancestors nav),pageTitle nav)
+logicalPath :: Navigation a
+             -> ([(String,NavPath String)],String)
+logicalPath nav = (unfoldr go $ (0,nav),pageTitle nav)
+  where go (n,nav') = 
+         case up nav' of
+           Nothing   -> Nothing
+           Just nav'' -> Just ((pageTitle nav'',Relative (n+1) []),(n+1,nav''))
 
 menu :: Lang
      -> Navigation a
