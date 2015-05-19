@@ -68,11 +68,11 @@ logicalPath nav = (unfoldr go $ (0,nav),pageTitle nav)
 
 
 menu :: Navigation a
-     -> Forest (String,Maybe (NavPath String))
+     -> Forest (String,Maybe (NavPath String),Bool)
 menu nav = moveUp (up nav,1) $ (map (mkNode 0) $ reverse $ lefts nav) ++
-                                [Tree.Node (pageTitle nav,Nothing) []] ++
+                                [Tree.Node (pageTitle nav,Nothing,isLeaf $ here $ level nav) []] ++
                                 (map (mkNode 0) $ rights nav)
-  where mkEnt n nav = (pageTitle nav, Just $ Relative n [pageUrl nav])
+  where mkEnt n nav = (pageTitle nav, Just $ Relative n [pageUrl nav],isLeaf $ here $ level nav)
         mkNode n nav = Tree.Node (mkEnt n nav) []
         moveUp (Nothing,_) prevForest = prevForest
         moveUp (Just nav,n) prevForest = moveUp (up nav,n+1) $ (map (mkNode n) $ reverse $ lefts nav) ++
