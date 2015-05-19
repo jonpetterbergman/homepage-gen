@@ -9,7 +9,7 @@ import           Data.Either.Combinators (mapBoth)
 
 data NavTree a b =
   Node {
-  	 key        :: a
+         key        :: a
        , value      :: Either (NavTree a b) b
        , _subForest :: NavForest a b
        }
@@ -32,7 +32,7 @@ followKeys n =
 type NavForest a b = [NavTree a b]
 
 subForest :: NavTree a b
-	  -> NavForest a b
+          -> NavForest a b
 subForest t = (either return (const []) $ value t) ++ (_subForest t) 
 
 isLeaf :: NavTree a b

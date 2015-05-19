@@ -54,6 +54,10 @@ pageTitle :: Navigation a
           -> String
 pageTitle = nicename . key . here . level
 
+pageUrl :: Navigation a
+        -> String
+pageUrl = urlname . key . here . level
+
 logicalPath :: Navigation a
              -> ([(String,NavPath String)],String)
 logicalPath nav = (unfoldr go $ (0,nav),pageTitle nav)
@@ -62,18 +66,18 @@ logicalPath nav = (unfoldr go $ (0,nav),pageTitle nav)
            Nothing   -> Nothing
            Just nav'' -> Just ((pageTitle nav'',Relative (n+1) []),(n+1,nav''))
 
-menu :: Lang
-     -> Navigation a
-     -> Forest (String,Maybe String)
-menu lang nav = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
-                                   [Tree.Node (pageTitle nav,Nothing) []] ++
-                                   (map mkNode $ rights nav)
-  where mkEnt nav = (pageTitle nav, Just $ relativePath lang nav)
-        mkNode nav = Tree.Node (mkEnt nav) []
-        moveUp Nothing prevForest = prevForest
-        moveUp (Just nav) prevForest = moveUp (up nav) $ (map mkNode $ reverse $ lefts nav) ++
-                                                          [Tree.Node (mkEnt nav) prevForest] ++
-                                                          (map mkNode $ rights nav)
+
+menu :: Navigation a
+     -> Forest (String,Maybe (NavPath String))
+menu nav = moveUp (up nav,1) $ (map (mkNode 0) $ reverse $ lefts nav) ++
+                                [Tree.Node (pageTitle nav,Nothing) []] ++
+                                (map (mkNode 0) $ rights nav)
+  where mkEnt n nav = (pageTitle nav, Just $ Relative n [pageUrl nav])
+        mkNode n nav = Tree.Node (mkEnt n nav) []
+        moveUp (Nothing,_) prevForest = prevForest
+        moveUp (Just nav,n) prevForest = moveUp (up nav,n+1) $ (map (mkNode n) $ reverse $ lefts nav) ++
+                                                                [Tree.Node (mkEnt n nav) prevForest] ++
+                                                                (map (mkNode n) $ rights nav)
                
 allPages :: [(Lang,LocalSite a)]
          -> [(Lang,[Lang],Navigation a)]
