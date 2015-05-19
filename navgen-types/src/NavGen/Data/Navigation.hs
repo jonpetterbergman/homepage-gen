@@ -60,11 +60,11 @@ pageUrl = urlname . key . here . level
 
 logicalPath :: Navigation a
              -> ([(String,NavPath String)],String)
-logicalPath nav = (unfoldr go $ (0,nav),pageTitle nav)
+logicalPath nav = (reverse $ unfoldr go $ (1,nav),pageTitle nav)
   where go (n,nav') = 
          case up nav' of
            Nothing   -> Nothing
-           Just nav'' -> Just ((pageTitle nav'',Relative (n+1) []),(n+1,nav''))
+           Just nav'' -> Just ((pageTitle nav'',Relative n []),(n+1,nav''))
 
 
 menu :: Navigation a

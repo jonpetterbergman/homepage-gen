@@ -1,10 +1,14 @@
 module Data.NavZip where
 
-import           Data.List        (unfoldr,null,find)
+import           Data.List        (unfoldr,
+                                   null,
+                                   find,
+                                   intercalate)
 import           Data.NavTree     (NavTree(..),
                                    NavForest,   
                                    drawTree,
-                                   test)
+                                   test,
+                                   isLeaf)
 import           Data.NavPath     (NavPath(..))
 import           Prelude hiding   (lookup)
 
@@ -192,3 +196,11 @@ ppZip = putStrLn . drawZip
 ppMZip :: Maybe (NavZip String String)
        -> IO ()
 ppMZip = maybe (putStrLn "NOTHING") ppZip
+
+showRelativePath :: NavZip a b
+                 -> NavPath String
+                 -> String
+showRelativePath nav (Absolute xs) = "/" ++ (intercalate "/" xs)
+showRelativePath nav (Relative ups xs) = 
+  intercalate "/" $ replicate n ".." ++ xs
+  where n = if (isLeaf $ here $ level nav) then ups - 1 else ups
