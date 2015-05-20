@@ -204,3 +204,14 @@ showRelativePath nav (Absolute xs) = "/" ++ (intercalate "/" xs)
 showRelativePath nav (Relative ups xs) = 
   intercalate "/" $ replicate n ".." ++ xs
   where n = if (isLeaf $ here $ level nav) then ups - 1 else ups
+
+makeRelativePath :: Eq a 
+                 => [a]
+                 -> NavZip a b
+                 -> Maybe (NavPath a)
+makeRelativePath abs nav = go 0 abs nav
+  where go n [] nav = maybe (Just $ Relative n []) (go (n+1) []) $ up nav
+        go n abs@(h:t) nav = 
+          case find ((== h) . key . here . level) $ allOnLevel nav of
+            Just _ -> Just $ Relative n abs
+            Nothing -> up nav >>= go (n+1) abs

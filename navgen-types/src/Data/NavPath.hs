@@ -18,7 +18,6 @@ instance Show (NavPath String) where
   show (Absolute xs) = "/" ++ (intercalate "/" xs)
   show (Relative ups xs) = intercalate "/" $ (replicate ups "..") ++ xs
 
-
 t1 :: NavPath String
 t1 = Relative 2 ["kek","lel"]
 
