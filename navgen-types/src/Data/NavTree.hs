@@ -44,7 +44,7 @@ isLeaf :: NavTree a b r
 isLeaf (Right (Node _ (Right _) [])) = True
 isLeaf _                     = False
 
-test = Node "petter" (Right ()) [photo,axis,deep,haskell,res]
+test = Right $ Node "petter" (Right ()) [photo,axis,deep,haskell,res]
   where photo    = Right $ Node "photo"  (Right ())    [photo1,photo2,photo3]
         photo1   = Right $ Node "photo1" (Right ())    []
         photo2   = Right $ Node "photo2" (Right ())    []
@@ -75,22 +75,28 @@ mapValues f (Right n) = Right $ go n
 mapKeys :: (k -> k') 
         -> NavTree k v r
         -> NavTree k' v r
-mapKeys f (Node k v sf) = 
-  Node (f k) (either (Left . mapKeys f) Right v) $ map (mapKeys f) sf
+mapKeys _ (Left x) = Left x
+mapKeys f (Right n) = Right $ go n
+  where go (Node k v sf) = 
+               Node (f k) (either (Left . go) Right v) $ map (mapKeys f) sf
 
 mapWithKeys :: (k -> k')
             -> (v -> v')
             -> NavTree k v r
             -> NavTree k' v' r
-mapWithKeys f g (Node k v sf) =
-  let k' = f k 
-      v' = mapBoth (mapWithKeys f g) g v in
-  Node k' v' $ map (mapWithKeys f g) sf
+mapWithKeys _ _ (Left x) = Left x
+mapWithKeys f g (Right n) = Right $ go n
+  where go (Node k v sf) = Node k' v' $ map (mapWithKeys f g) sf
+          where k' = f k 
+                v' = mapBoth go g v
+  
 
 toList :: NavTree k v r
-       -> [(k,v)]
-toList (Node _ (Left  n) ns) = toList n ++ (concatMap toList ns)
-toList (Node k (Right v) ns) = (k,v):(concatMap toList ns)
+       -> [Either r (k,v)]
+toList (Left x) = [Left x]
+toList (Right n) = go n
+  where go (Node _ (Left  n) ns) = go n ++ (concatMap toList ns)
+        go (Node k (Right v) ns) = (Right (k,v)):(concatMap toList ns)
 
 pad :: a
     -> [[a]]
@@ -105,11 +111,12 @@ drawTree nav =
   intercalate "\n" $ zipWith (\v k -> k ++ " " ++ (fromMaybe "-" v)) vals $ map concat $ transpose $ map (pad ' ') $ transpose $ pad "" $ keytbl
   where marry ((h,_) :| t) ((h',x) :| t') = (h ++ h',x) :| ((map indent t') ++ t)
         indent (xs,x) = ([""] ++ xs,x)
-        go node = 
+        go (Left x) = ([x],Just "<file>") :| []
+        go (Right node) = 
           let xs = concatMap (NE.toList . go) $ _subForest node in
           case value node of
             Left node' ->
-              marry (([key node],Nothing) :| (map indent xs)) (go node')
+              marry (([key node],Nothing) :| (map indent xs)) (go $ Right node')
             Right x    ->
               ([key node],Just x) :| (map indent xs)
 
