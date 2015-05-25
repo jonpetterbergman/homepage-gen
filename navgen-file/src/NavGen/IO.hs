@@ -6,8 +6,8 @@ import           Control.Monad                   (filterM,
                                                   guard)
 import           Data.Char                       (isSpace)
 import           Data.Default                    (def)
-import           Data.Either			 (rights,
-		 				  lefts)
+import           Data.Either                     (rights,
+                                                   lefts)
 import           Data.Function                   (on)
 import           Data.LanguageCodes              (ISO639_1(..))
 import qualified Data.LanguageCodes         as    ISO639_1
@@ -30,7 +30,7 @@ import           Data.NavTree                    (NavTree(..),
                                                   NavForest)
 import           NavGen.Data.Navigation          (Navigation,
                                                   relativePath,
-						  allPages)
+                                                  allPages)
 import           NavGen.Data.Site                (IntlSite,
                                                   LocalSite,
                                                   localizes,
@@ -120,7 +120,7 @@ readDefault readFun fname =
     (mtitle,contents) <- readFun fname
     return (maybe lerr id $ fileLang fname,maybe err id mtitle,contents)
   where err = error $ "default file: " ++ show fname ++ " doesn't have a title" 
-  	lerr = error $ "default file: " ++ show fname ++ " is not translated"
+        lerr = error $ "default file: " ++ show fname ++ " is not translated"
 
 filterDirectoryContents :: (FilePath -> Bool)
                         -> FilePath
@@ -155,7 +155,7 @@ readLeaf readFun fullpath =
     do
       mpage <- readResourceOrPage readFun dir base
       case mpage of
-      	Left  path          -> return $ Left path
+        Left  path          -> return $ Left path
         Right (lbl,content) ->
           return $ Right $ Node lbl (Right content) []
 
@@ -221,18 +221,23 @@ select p (ts,fs) x =
     return $ if r then (x:ts,fs) else (ts,x:fs)
 
 joinLeaves :: [(IntlLabel,IntlContent a)]
-           -> NavForest IntlLabel (IntlContent a)
+           -> NavForest IntlLabel (IntlContent (Either b a))
 joinLeaves = mapMaybe go . groupBy ((==) `on` (urlname . fst)) . 
                            sortBy (compare `on` (urlname . fst)) 
   where go [] = Nothing
         go xs@(h:t) = Just $ Node (Label (urlname $ fst h) 
                                          (Map.unions $ map (nicename . fst) xs))
-                                  (Right $ Map.unions $ map snd xs) []
+                                         (Right $ Map.map Right $ Map.unions $ map snd xs) []
                         
+mkResource :: FilePath
+           -> IntlSite (Either FilePath a)
+mkResource fn = Node lab (Right fn) []
+  where lab = undefined
+
 readDir :: FileReader a
         -> [Pattern]
         -> FilePath
-        -> IO ([FilePath],IntlSite a)
+        -> IO (IntlSite (Either FilePath a))
 readDir readFun globs dir =
   do
     (ixfiles,rest)       <- fmap (partition (isPrefixOf "index")) $ 
@@ -242,11 +247,11 @@ readDir readFun globs dir =
     (dirnames,leafnames) <- partitionM (doesDirectoryExist . combine dir) rest
     dirs                 <- mapM (readDir readFun globs . combine dir) dirnames
     leafs                <- mapM (readResourceOrPage readFun dir) leafnames
-    return $ ((concatMap fst dirs) ++ (lefts leafs),) $ 
-      let forest = (map snd dirs) ++ (joinLeaves $ rights leafs) in
+    return $ 
+      let forest = dirs ++ (joinLeaves $ rights leafs) ++ (map mkResource $ lefts leafs) in
       case flatten of
         Nothing -> 
-          Node k (Right v) forest
+          Node k (Right $ fmap Right v) forest
         Just (basename,nodename) ->
           case partition (\n -> basename == urlname (key n)) forest of
             ([],_) -> error $ "cannot find node: " ++ show basename ++ 
@@ -256,13 +261,13 @@ readDir readFun globs dir =
 
 readLocalSites :: FileReader a
                -> FilePath
-               -> IO ([FilePath],[(Lang,LocalSite a)])
+               -> IO [(Lang,LocalSite (Either FilePath a))]
 readLocalSites readFun dir =
   do
     globs <- readIgnore dir
-    (resources,site)  <- readDir readFun globs dir
+    site  <- readDir readFun globs dir
     defs  <- readDefaults readFun globs dir
-    return $ (resources,localizes site defs)
+    return $ localizes site $ map (\(l,s,x) -> (l,s,Right x)) defs
 
 writePage :: FileWriter b
           -> FilePath

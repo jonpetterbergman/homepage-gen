@@ -7,80 +7,87 @@ import qualified Data.List.NonEmpty as    NE
 import           Data.Maybe              (fromMaybe)
 import           Data.Either.Combinators (mapBoth)
 
-data NavTree a b =
+data NavNode a b r =
   Node {
          key        :: a
-       , value      :: Either (NavTree a b) b
-       , _subForest :: NavForest a b
+       , value      :: Either (NavNode a b r) b
+       , _subForest :: NavForest a b r
        }
        deriving (Show,Eq)
 
-followValue :: NavTree a b
+type NavTree a b r = Either r (NavNode a b r)
+
+type NavForest a b r = [NavTree a b r]
+
+
+followValue :: NavNode a b r
             -> b
 followValue n =
   case value n of
     Left n' -> followValue n'
     Right x -> x
 
-followKeys :: NavTree a b
+followKeys :: NavNode a b r
            -> [a]
 followKeys n =
   case value n of
     Left n' -> key n:followKeys n'
     Right x -> [key n]
 
-type NavForest a b = [NavTree a b]
 
-subForest :: NavTree a b
-          -> NavForest a b
-subForest t = (either return (const []) $ value t) ++ (_subForest t) 
+subForest :: NavNode a b r
+          -> NavForest a b r
+subForest t = (map Right $ either return (const []) $ value t) ++ (_subForest t) 
 
-isLeaf :: NavTree a b
+isLeaf :: NavTree a b r
        -> Bool
-isLeaf (Node _ (Right _) []) = True
+isLeaf (Right (Node _ (Right _) [])) = True
 isLeaf _                     = False
 
-test = Node "petter" (Right ()) [photo,axis,deep,haskell]
-  where photo    = Node "photo"  (Right ())    [photo1,photo2,photo3]
-        photo1   = Node "photo1" (Right ())    []
-        photo2   = Node "photo2" (Right ())    []
-        photo3   = Node "photo3" (Right ())    []
-        axis     = Node "axis"   (Left axisix) [axis2]
+test = Node "petter" (Right ()) [photo,axis,deep,haskell,res]
+  where photo    = Right $ Node "photo"  (Right ())    [photo1,photo2,photo3]
+        photo1   = Right $ Node "photo1" (Right ())    []
+        photo2   = Right $ Node "photo2" (Right ())    []
+        photo3   = Right $ Node "photo3" (Right ())    []
+        axis     = Right $ Node "axis"   (Left axisix) [axis2]
         axisix   = Node "axisix" (Right ())    []
-        axis2    = Node "axis2"  (Right ())    []
-        deep     = Node "deep"   (Left deepix) [deep1,deep2]
-        deep1    = Node "deep1"  (Right ()) []
-        deep2    = Node "deep2"  (Right ()) []
+        axis2    = Right $ Node "axis2"  (Right ())    []
+        deep     = Right $ Node "deep"   (Left deepix) [deep1,deep2]
+        deep1    = Right $ Node "deep1"  (Right ()) []
+        deep2    = Right $ Node "deep2"  (Right ()) []
         deepix   = Node "deepix" (Left deeperix) [deeper1,deeper2]
-        deeper1  = Node "deeper1" (Right ()) []
-        deeper2  = Node "deeper2" (Right ()) []
+        deeper1  = Right $ Node "deeper1" (Right ()) []
+        deeper2  = Right $ Node "deeper2" (Right ()) []
         deeperix = Node "deeperix" (Right ()) []
-        haskell  = Node "haskell" (Right ())   [haskell1,haskell2]
-        haskell1 = Node "haskell1" (Right ()) []
-        haskell2 = Node "haskell2" (Right ()) [] 
+        haskell  = Right $ Node "haskell" (Right ())   [haskell1,haskell2]
+        haskell1 = Right $ Node "haskell1" (Right ()) []
+        haskell2 = Right $ Node "haskell2" (Right ()) [] 
+        res      = Left "kek"
 
 mapValues :: (v -> v')
-          -> NavTree k v
-          -> NavTree k v'
-mapValues f (Node k v sf) =
-  Node k (either (Left . mapValues f) (Right . f) v) $ map (mapValues f) sf
+          -> NavTree k v r
+          -> NavTree k v' r
+mapValues _ (Left x) = Left x
+mapValues f (Right n) = Right $ go n
+  where go (Node k v sf) =
+               Node k (either (Left . go) (Right . f) v) $ map (mapValues f) sf
 
 mapKeys :: (k -> k') 
-        -> NavTree k v
-        -> NavTree k' v
+        -> NavTree k v r
+        -> NavTree k' v r
 mapKeys f (Node k v sf) = 
   Node (f k) (either (Left . mapKeys f) Right v) $ map (mapKeys f) sf
 
 mapWithKeys :: (k -> k')
             -> (v -> v')
-            -> NavTree k v
-            -> NavTree k' v'
+            -> NavTree k v r
+            -> NavTree k' v' r
 mapWithKeys f g (Node k v sf) =
   let k' = f k 
       v' = mapBoth (mapWithKeys f g) g v in
   Node k' v' $ map (mapWithKeys f g) sf
 
-toList :: NavTree k v
+toList :: NavTree k v r
        -> [(k,v)]
 toList (Node _ (Left  n) ns) = toList n ++ (concatMap toList ns)
 toList (Node k (Right v) ns) = (k,v):(concatMap toList ns)
@@ -91,7 +98,7 @@ pad :: a
 pad c xs = map (padn (maximum $ map length xs)) xs
   where padn n x = take n $ x ++ (repeat c)
 
-drawTree :: NavTree String String
+drawTree :: NavTree String String String
          -> String
 drawTree nav = 
   let (keytbl,vals) = unzip $ NE.toList $ go nav in
@@ -107,6 +114,6 @@ drawTree nav =
               ([key node],Just x) :| (map indent xs)
 
         
-ppTree :: NavTree String String
+ppTree :: NavTree String String String
        -> IO ()
 ppTree = putStrLn . drawTree
