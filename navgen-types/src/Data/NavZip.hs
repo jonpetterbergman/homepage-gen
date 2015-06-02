@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Data.NavZip where
 
 import           Data.List        (unfoldr,
@@ -13,115 +15,126 @@ import           Data.NavTree     (NavTree,
 import           Data.NavPath     (NavPath(..))
 import           Prelude hiding   (lookup)
 
-data Level p k a r =
-  Level {
-          before :: [NavTree k a r]
-        , here   :: p
-        , after  :: [NavTree k a r]
-        } 
-        deriving (Show,Eq)
 
-type IndUpLevel k a r = Level (k,Maybe a) k a r
-
-type UpLevel k a r = Level (k,a) k a r
-
-type ResLevel k a r = Level r k a r
-
-type IndLevel k a r = Level (NavNode k a r) k a r
-
-data ResZip k a r =
-  ResZip {
-           res_above :: ([UpLevel k a r],[IndUpLevel k a r])
-         , res_level :: ResLevel k a r
+data PLevel k a r = 
+  PLevel {
+           point_to :: NavNode k a r
+         , p_before :: [NavTree k a r]
+         , p_after :: [NavTree k a r]
          } deriving (Show,Eq)
+
+data NPLevel p k a r =
+  NPLevel {
+            np_before :: [NavTree k a r]
+          , np_here   :: p
+          , np_after  :: [NavTree k a r]
+          }  deriving (Show,Eq)
+
+type IndUpLevel k a r = NPLevel (k,Maybe a) k a r
+
+type UpLevel k a r = NPLevel (k,a) k a r
+
+data NIndZip k a r =
+  NIndZip {
+            res_above :: ([UpLevel k a r],[IndUpLevel k a r])
+          , res_level :: NPLevel (NavTree k a r) k a r
+          } deriving (Show,Eq)
 
 data IndZip k a r =
   IndZip {
            ind_above :: [IndUpLevel k a r]
-         , ind_level :: IndLevel k a r
+         , ind_level :: PLevel k a r
          } deriving (Show,Eq)
 
-type NavZip k a r = Either (ResZip k a r) (IndZip k a r)
+type NavZip k a r = Either (IndZip k a r) (NIndZip k a r)
 
-type NavLevel k a r = Either (ResLevel k a r) (IndLevel k a r)
+--type NavLevel k a r = Either (NPLevel (NavTree k a r) k a r) (PLevel k a r)
+
+--level :: NavZip k a r -> NavLevel k a r
+--level (Left r) = Left $ res_level r
+--level (Right i) = Right $ ind_level i
 
 fromTree :: NavTree k a r
          -> NavZip k a r
-fromTree (Left t) = Left $ ResZip ([],[]) $ Level [] t []
-fromTree (Right n) = Right $ IndZip [] $ Level [] n []
+fromTree (Left t) = Right $ NIndZip ([],[]) $ NPLevel [] (Left t) []
+fromTree (Right x) = Right $ NIndZip ([],[]) $ NPLevel [] (Right x) []  
 
-levelLeft :: NavLevel k a r
-          -> Maybe (NavLevel k a r)
-levelLeft (Left (Level [] _ _)) = Nothing
-levelLeft (Left (Level (h:t) x r)) = Just $ mkLevel t h ((Left x):r)
-levelLeft (Right (Level [] _ _))    = Nothing
-levelLeft (Right (Level (h:t) x r)) = Just $ mkLevel t h ((Right x):r)
+class Level a where
+  levelLeft :: a -> Maybe a
+  levelRight :: a -> Maybe a
 
-levelRight :: NavLevel k a r
-           -> Maybe (NavLevel k a r)
-levelRight (Left (Level _ _ [])) = Nothing
-levelRight (Left (Level l x (h:t))) = Just $ mkLevel ((Left x):l) h t
-levelRight (Right (Level _ _ [])) = Nothing
-levelRight (Right (Level l x (h:t))) = Just $ mkLevel ((Right x):l) h t
+instance Level (NPLevel (NavTree k a r) k a r) where
+  levelLeft (NPLevel []  _ _) = Nothing
+  levelLeft (NPLevel (h:t) x aft) = Just $ NPLevel t h (x:aft)
+  levelRight (NPLevel _ _ []) = Nothing
+  levelRight (NPLevel bef x (h:t)) = Just $ NPLevel (x:bef) h t 
+ 
+instance Level (PLevel k a r) where
+  levelLeft (PLevel _ [] _) = Nothing
+  levelLeft (PLevel pt (h:t) aft) = Just $ PLevel pt t (h:aft)
+  levelRight (PLevel _ _ []) = Nothing
+  levelRight (PLevel pt bef (h:t)) = Just $ PLevel pt (h:bef) t
 
-mkLevel :: [NavTree k a r]
-        -> NavTree k a r
-        -> [NavTree k a r]
-        -> NavLevel k a r
-mkLevel before (Left r) after = Left $ Level before r after
-mkLevel before (Right r) after = Right $ Level before r after
+left :: NavZip k a r
+     -> Maybe (NavZip k a r)
+left (Left (IndZip ab lev)) = fmap (Left . IndZip ab) $ levelLeft lev 
+left (Right (NIndZip ab lev)) = fmap (Right . NIndZip ab) $ levelLeft lev
 
-
---left :: NavZip k a r
---     -> Maybe (NavZip k a r)
---left (NavZip a lev) = fmap (NavZip a) $ levelLeft lev
-
---right :: NavZip k a r
---      -> Maybe (NavZip k a r)
---right (NavZip a lev) = fmap (NavZip a) $ levelRight lev
+right :: NavZip k a r
+      -> Maybe (NavZip k a r)
+right (Left (IndZip ab lev)) = fmap (Left . IndZip ab) $ levelRight lev 
+right (Right (NIndZip ab lev)) = fmap (Right . NIndZip ab) $ levelRight lev
 
 
---levelLeftMost :: NavLevel k a r
---              -> NavLevel k a r
---levelLeftMost lev = maybe lev levelLeftMost $ levelLeft lev
+levelLeftMost :: Level a
+              => a -> a
+levelLeftMost lev = maybe lev levelLeftMost $ levelLeft lev
 
---levelRightMost :: NavLevel k a r
---               -> NavLevel k a r
---levelRightMost lev = maybe lev levelRightMost $ levelRight lev
+levelRightMost :: Level a
+               => a -> a
+levelRightMost lev = maybe lev levelRightMost $ levelRight lev
 
---dup :: a 
---    -> (a,a)
---dup x = (x,x)
+dup :: a 
+    -> (a,a)
+dup x = (x,x)
 
---levelRights :: NavLevel k a r
---            -> [NavLevel k a r]
---levelRights = unfoldr (fmap dup . levelRight)
+levelRights :: Level a
+            => a
+            -> [a]
+levelRights = unfoldr (fmap dup . levelRight)
 
---levelLefts :: NavLevel k a r
---           -> [NavLevel k a r]
---levelLefts = unfoldr (fmap dup . levelLeft)
+levelLefts :: Level a
+           => a
+           -> [a]
+levelLefts = unfoldr (fmap dup . levelLeft)
 
---rights :: NavZip k a r
---       -> [NavZip k a r]
---rights (NavZip a lev) = map (NavZip a) $ levelRights lev
+lefts :: NavZip k a r
+       -> [NavZip k a r]
+lefts (Left (IndZip a lev)) = map (Left . IndZip a) $ levelLefts lev
+lefts (Right (NIndZip a lev)) = map (Right . NIndZip a) $ levelLefts lev
 
---lefts :: NavZip k a r
---       -> [NavZip k a r]
---lefts (NavZip a lev) = map (NavZip a) $ levelLefts lev
+rights :: NavZip k a r
+       -> [NavZip k a r]
+rights (Left (IndZip a lev)) = map (Left . IndZip a) $ levelRights lev
+rights (Right (NIndZip a lev)) = map (Right . NIndZip a) $ levelRights lev
 
---levelAll :: NavLevel k a r
---         -> [NavLevel k a r]
---levelAll nav = 
---  let start = levelLeftMost nav in
---  start:(levelRights start)
 
---allOnLevel :: NavZip k a r
---           -> [NavZip k a r]
---allOnLevel (NavZip a lev) = map (NavZip a) $ levelAll lev
+levelAll :: Level a
+         => a
+         -> [a]
+levelAll nav = 
+  let start = levelLeftMost nav in
+  start:(levelRights start)
 
---isTop :: NavZip k a r
---      -> Bool
---isTop (NavZip a lev) = null a
+allOnLevel :: NavZip k a r
+           -> [NavZip k a r]
+allOnLevel (Left (IndZip a lev)) = map (Left . IndZip a) $ levelAll lev
+allOnLevel (Right (NIndZip a lev)) = map (Right . NIndZip a) $ levelAll lev
+
+isTop :: NavZip k a r
+      -> Bool
+isTop (Left (IndZip a _)) = null a
+isTop (Right (NIndZip (a,_) _)) = null a
 
 --everything :: NavZip k a r
 --           -> NavTree k (NavZip k a r) (NavZip k a r)
