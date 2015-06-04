@@ -153,6 +153,11 @@ isTop (Right (NIndZip (a,_) _)) = null a
 --                      (Right z,[])
 
 
+up :: NavZip k a r
+   -> Maybe (NavZip k a r)
+up (Left (IndZip [] _)) = Nothing
+up (Left (IndZip (h:t) l)) = Nothing
+
 --up :: NavZip k a r
 --   -> Maybe (NavZip k a r)
 --up (NavZip [] _) = Nothing
