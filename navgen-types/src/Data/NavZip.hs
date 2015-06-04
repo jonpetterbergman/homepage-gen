@@ -9,7 +9,9 @@ import           Data.NavTree     (NavTree(..),
                                    drawTree,
                                    test,
                                    isLeaf)
-import           Data.NavPath     (NavPath(..))
+import           Data.NavPath     (NavPath,
+                                   Relative(..),
+                                   Absolute(..))
 import           Prelude hiding   (lookup)
 
 data Level p k a =
@@ -132,21 +134,28 @@ lookup :: Eq k
        => NavZip k a
        -> NavPath k
        -> Maybe (NavZip k a)
-lookup z (Absolute xs) = lookup (top z) $ Relative 0 xs
-lookup z (Relative 0 []) = Just z
-lookup z (Relative 0 (x:xs)) = 
+lookup z (Left (Absolute xs)) = lookupRelative (top z) $ Relative 0 xs
+lookup z (Right r) = lookupRelative z r
+
+
+lookupRelative :: Eq k
+               => NavZip k a
+               -> Relative k
+               -> Maybe (NavZip k a)
+lookupRelative z (Relative 0 []) = Just z
+lookupRelative z (Relative 0 (x:xs)) = 
   do
     z' <- find ((== x) . key . here . level) $ children z
-    lookup z' $ Relative 0 xs
-lookup z (Relative n xs) = 
+    lookupRelative z' $ Relative 0 xs
+lookupRelative z (Relative n xs) = 
   do
     z' <- up z
-    lookup z' $ Relative (n-1) xs
+    lookupRelative z' $ Relative (n-1) xs
 
 mkPath :: (Eq k,Eq a) 
        => NavZip k a
        -> NavZip k a
-       -> Maybe (NavPath k)
+       -> Maybe (Relative k)
 mkPath = go (0,[])
   where go (n,xs) from to | from == to = Just $ Relative n xs
                           | otherwise = do from' <- up from
@@ -198,9 +207,8 @@ ppMZip :: Maybe (NavZip String String)
 ppMZip = maybe (putStrLn "NOTHING") ppZip
 
 showRelativePath :: NavZip a b
-                 -> NavPath String
+                 -> Relative String
                  -> String
-showRelativePath nav (Absolute xs) = "/" ++ (intercalate "/" xs)
 showRelativePath nav (Relative ups xs) = 
   intercalate "/" $ replicate n ".." ++ xs
   where n = if (isLeaf $ here $ level nav) then ups - 1 else ups
@@ -208,7 +216,7 @@ showRelativePath nav (Relative ups xs) =
 makeRelativePath :: Eq a 
                  => [a]
                  -> NavZip a b
-                 -> Maybe (NavPath a)
+                 -> Maybe (Relative a)
 makeRelativePath abs nav = go 0 abs nav
   where go n [] nav = maybe (Just $ Relative n []) (go (n+1) []) $ up nav
         go n abs@(h:t) nav = 
