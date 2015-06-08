@@ -223,3 +223,7 @@ makeRelativePath abs nav = go 0 abs nav
           case find ((== h) . key . here . level) $ allOnLevel nav of
             Just _ -> Just $ Relative n abs
             Nothing -> up nav >>= go (n+1) abs
+
+toAbsolute :: NavZip a b
+           -> Absolute a
+toAbsolute nav = Absolute $ map (key . here . level) $ reverse $ nav:(ancestors nav)

@@ -54,6 +54,7 @@ toRelative :: Eq k
            -> Relative k
 toRelative (Absolute a) (Absolute b) = go a b
   where go [] p = Relative 0 p
+        go a b | a == b = Relative 0 (take 1 $ reverse b)
         go (h:t) (h':t') | h /= h'   = Relative (length t) (h':t')
                          | otherwise = go t t'   
 
